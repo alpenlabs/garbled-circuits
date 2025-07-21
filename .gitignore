@@ -91,3 +91,12 @@ coverage.xml
 
 # backup files
 *.bak
+
+*.bristol
+*.csv
+*.log
+*.txt
+*.json
+*.png
+*.wire_analysis
+*.sh

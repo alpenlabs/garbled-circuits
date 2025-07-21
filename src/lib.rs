@@ -1,7 +1,7 @@
-//! CHANGEME library-level docs.
+use std::io;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn foo() {}
-}
+pub trait LineStream: Iterator<Item = Result<String, io::Error>> {}
+
+pub mod stream;
+pub mod counter;
+pub mod wire_analyzer;
