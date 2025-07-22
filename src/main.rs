@@ -18,16 +18,6 @@ struct Args {
     #[command(subcommand)]
     command: Commands,
 
-    /// Buffer size for reading (e.g., 128MB, 256MB, 512MB)
-    #[arg(
-        short = 'b',
-        long = "buffer-size", 
-        default_value = "256MB",
-        global = true,
-        help = "Buffer size for file reading (supports MB/GB suffixes)"
-    )]
-    buffer_size: String,
-
     /// Path to the Bristol circuit file
     #[arg(global = true, help = "Bristol circuit file to process")]
     file: PathBuf,
@@ -66,36 +56,15 @@ enum Commands {
     },
 }
 
-/// Parse buffer size string (e.g., "64MB", "128MB", "1GB") to bytes
-fn parse_buffer_size(size_str: &str) -> Result<usize> {
-    let size_str = size_str.to_uppercase();
-    
-    if let Some(num_str) = size_str.strip_suffix("GB") {
-        let num: f64 = num_str.parse()?;
-        Ok((num * 1024.0 * 1024.0 * 1024.0) as usize)
-    } else if let Some(num_str) = size_str.strip_suffix("MB") {
-        let num: f64 = num_str.parse()?;
-        Ok((num * 1024.0 * 1024.0) as usize)
-    } else if let Some(num_str) = size_str.strip_suffix("KB") {
-        let num: f64 = num_str.parse()?;
-        Ok((num * 1024.0) as usize)
-    } else {
-        // Assume bytes if no suffix
-        Ok(size_str.parse()?)
-    }
-}
 
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    // Parse buffer size
-    let buffer_size = parse_buffer_size(&args.buffer_size)?;
-
     // Open file
     let file = File::open(&args.file)?;
     
-    // Create streaming reader with specified buffer size
-    let mut stream = BufferedLineStream::with_buffer_size(file, buffer_size);
+    // Create streaming reader with default buffer size
+    let mut stream = BufferedLineStream::new(file);
     
     match args.command {
         Commands::Count => {

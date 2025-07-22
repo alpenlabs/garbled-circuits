@@ -1,14 +1,9 @@
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 
-/// Default buffer size optimized for SSD sequential reads (256MB)
-const DEFAULT_BUFFER_SIZE: usize = 256 * 1024 * 1024;
+/// Default buffer size optimized for SSD sequential reads (256KB)
+const DEFAULT_BUFFER_SIZE: usize = 1024;
 
-/// High-performance line streaming for large Bristol circuit files
-/// 
-/// Uses large internal buffers to minimize syscalls and returns string slices
-/// to avoid allocations. Designed for sequential read-only processing of very
-/// large files (50-100GB).
 pub struct BufferedLineStream {
     /// Buffered reader with large buffer for efficient IO
     reader: BufReader<File>,
@@ -17,15 +12,12 @@ pub struct BufferedLineStream {
 }
 
 impl BufferedLineStream {
-    /// Create a new stream with default 64MB buffer size
+    /// Create a new stream with default buffer size
     pub fn new(file: File) -> Self {
         Self::with_buffer_size(file, DEFAULT_BUFFER_SIZE)
     }
 
     /// Create a new stream with custom buffer size
-    /// 
-    /// For SSDs, larger buffers (64-256MB) typically perform better
-    /// due to reduced syscall overhead
     pub fn with_buffer_size(file: File, buffer_size: usize) -> Self {
         Self {
             reader: BufReader::with_capacity(buffer_size, file),
