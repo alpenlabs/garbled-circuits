@@ -1,11 +1,12 @@
 use std::fs::File;
 use std::path::PathBuf;
 use clap::Parser;
-use anyhow::Result;
+use anyhow::{Result, bail};
 
 use gc::stream::BufferedLineStream;
 use gc::counter::count_gate_types;
 use gc::wire_analyzer::analyze_wire_usage;
+use gc::garbler::garble_circuit;
 
 /// High-performance Bristol circuit file analyzer
 #[derive(Parser, Debug)]
@@ -98,13 +99,43 @@ fn main() -> Result<()> {
             println!("Missing/unused wires: {}", wire_report.missing_wires_count);
         }
         Commands::Garble { seed_file, output } => {
-            let output_path = output.unwrap_or_else(|| {
+            // Load 32-byte seed from file
+            let seed_data = std::fs::read(&seed_file)?;
+            if seed_data.len() != 32 {
+                bail!("Seed file must contain exactly 32 bytes, got {}", seed_data.len());
+            }
+            let mut seed_array = [0u8; 32];
+            seed_array.copy_from_slice(&seed_data);
+            
+            // Garble the circuit
+            let garbling_result = garble_circuit(&mut stream, &seed_array)?;
+            
+            // Determine output paths
+            let labels_path = output.as_ref().map(|p| {
+                let mut path = p.clone();
+                path.set_extension("labels.json");
+                path
+            }).unwrap_or_else(|| {
+                let mut path = args.file.clone();
+                path.set_extension("labels.json");
+                path
+            });
+            
+            let tables_path = output.unwrap_or_else(|| {
                 let mut path = args.file.clone();
                 path.set_extension("garbled");
                 path
             });
-            println!("Garbling {} with seed from {} to {} - to be implemented", 
-                     args.file.display(), seed_file.display(), output_path.display());
+            
+            // Save results
+            garbling_result.save(&labels_path, &tables_path)?;
+            
+            println!("Garbling completed:");
+            println!("  Wire labels saved to: {}", labels_path.display());
+            println!("  Garbled tables saved to: {}", tables_path.display());
+            println!("  Input wires: {}", garbling_result.wire_labels.input_labels.len());
+            println!("  Output wires: {}", garbling_result.wire_labels.output_labels.len());
+            println!("  AND gates: {}", garbling_result.garbled_tables.len());
         }
     }
     

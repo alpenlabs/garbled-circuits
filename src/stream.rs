@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 
-/// Default buffer size optimized for SSD sequential reads (256KB)
+/// Default buffer size 
 const DEFAULT_BUFFER_SIZE: usize = 1024;
 
 pub struct BufferedLineStream {
