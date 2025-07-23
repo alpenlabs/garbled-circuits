@@ -6,6 +6,7 @@ use rand::{RngCore, SeedableRng};
 use sha2::{Sha256, Digest};
 
 use crate::stream::BufferedLineStream;
+use crate::wire_analyzer::WireUsageReport;
 
 /// 128-bit wire label for garbled circuits
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -220,15 +221,21 @@ fn garble_and_gate(
 }
 
 /// Garble a Bristol circuit using Yao's protocol with free XOR optimization
+/// Uses wire analysis data for memory-efficient label management
 ///
 /// # Arguments
 /// * `stream` - The line stream to process Bristol circuit
+/// * `wire_report` - Wire usage analysis for memory optimization
 /// * `seed_data` - 32 bytes of random seed for CSPRNG
 /// 
 /// # Returns
 /// * `Ok(GarblingResult)` - Complete garbling with wire labels and garbled tables
 /// * `Err(anyhow::Error)` - Parse error or garbling error
-pub fn garble_circuit(stream: &mut BufferedLineStream, seed_data: &[u8; 32]) -> Result<GarblingResult> {
+pub fn garble_circuit(
+    stream: &mut BufferedLineStream,
+    wire_report: &WireUsageReport,
+    seed_data: &[u8; 32]
+) -> Result<GarblingResult> {
     // Initialize CSPRNG with provided seed
     let mut rng = ChaCha12Rng::from_seed(*seed_data);
     
@@ -238,9 +245,23 @@ pub fn garble_circuit(stream: &mut BufferedLineStream, seed_data: &[u8; 32]) -> 
     delta_bytes[15] |= 1; // Set LSB to 1
     let delta = WireLabel::new(delta_bytes);
     
-    // Parse all gates first to understand wire structure
+    // Initialize usage counts for runtime tracking (clone from wire analysis)
+    // TODO: Optimize to avoid cloning - can use mutable reference or move semantics
+    let mut remaining_usage = wire_report.wire_usage_counts.clone();
+    
+    // Initialize active wire labels HashMap (only stores labels for live wires)
+    let mut active_wire_labels: std::collections::HashMap<usize, WireLabel> = std::collections::HashMap::new();
+    
+    // Initialize primary input wires with random labels and collect them for final result
+    let mut input_labels = std::collections::HashMap::new();
+    for &input_wire_id in &wire_report.primary_input_wires {
+        let label_0 = WireLabel::random(&mut rng);
+        active_wire_labels.insert(input_wire_id, label_0);
+        input_labels.insert(input_wire_id, label_0);  // Save for final result
+    }
+    
+    // Parse all gates first to understand processing order
     let mut gates = Vec::new();
-    let mut max_wire_id = 0;
     let mut line_number = 0;
     
     while let Some(line_result) = stream.next_line() {
@@ -252,41 +273,7 @@ pub fn garble_circuit(stream: &mut BufferedLineStream, seed_data: &[u8; 32]) -> 
         }
         
         let gate = parse_gate_line(line)?;
-        
-        // Track maximum wire ID
-        for &wire_id in &gate.inputs {
-            max_wire_id = max_wire_id.max(wire_id);
-        }
-        for &wire_id in &gate.outputs {
-            max_wire_id = max_wire_id.max(wire_id);
-        }
-        
         gates.push(gate);
-    }
-    
-    // Initialize wire labels storage (only label_0, label_1 = label_0 XOR delta)
-    let mut wire_labels_storage: Vec<Option<WireLabel>> = vec![None; max_wire_id + 1];
-    
-    // Identify input wires (wires that are never produced by any gate)
-    let mut produced_wires = std::collections::HashSet::new();
-    for gate in &gates {
-        for &wire_id in &gate.outputs {
-            produced_wires.insert(wire_id);
-        }
-    }
-    
-    // Generate labels for input wires (only label_0)
-    let mut input_labels = std::collections::HashMap::new();
-    for gate in &gates {
-        for &wire_id in &gate.inputs {
-            if !produced_wires.contains(&wire_id) && !input_labels.contains_key(&wire_id) {
-                // This is an input wire - generate random label_0
-                let label_0 = WireLabel::random(&mut rng);
-                
-                input_labels.insert(wire_id, label_0);
-                wire_labels_storage[wire_id] = Some(label_0);
-            }
-        }
     }
     
     // Process gates and generate garbled tables
@@ -301,15 +288,28 @@ pub fn garble_circuit(stream: &mut BufferedLineStream, seed_data: &[u8; 32]) -> 
                     bail!("XOR gate must have 2 inputs and 1 output");
                 }
                 
-                let input1_label_0 = wire_labels_storage[gate.inputs[0]]
+                let input1_label_0 = active_wire_labels.get(&gate.inputs[0])
                     .ok_or_else(|| anyhow::anyhow!("Input wire {} not found", gate.inputs[0]))?;
-                let input2_label_0 = wire_labels_storage[gate.inputs[1]]
+                let input2_label_0 = active_wire_labels.get(&gate.inputs[1])
                     .ok_or_else(|| anyhow::anyhow!("Input wire {} not found", gate.inputs[1]))?;
                 
                 // For XOR: output_0 = input1_0 XOR input2_0
-                let output_label_0 = input1_label_0.xor(&input2_label_0);
+                let output_label_0 = input1_label_0.xor(input2_label_0);
                 
-                wire_labels_storage[gate.outputs[0]] = Some(output_label_0);
+                // Add output wire label to active set
+                active_wire_labels.insert(gate.outputs[0], output_label_0);
+                
+                // Process input wires: decrement usage and remove if no longer needed
+                for &input_wire in &gate.inputs {
+                    if remaining_usage[input_wire] > 0 {
+                        remaining_usage[input_wire] -= 1;
+                        
+                        // Remove wire label from active set if no longer needed
+                        if remaining_usage[input_wire] == 0 {
+                            active_wire_labels.remove(&input_wire);
+                        }
+                    }
+                }
             }
             "AND" => {
                 // Garbled AND gate with 4 ciphertexts
@@ -317,14 +317,14 @@ pub fn garble_circuit(stream: &mut BufferedLineStream, seed_data: &[u8; 32]) -> 
                     bail!("AND gate must have 2 inputs and 1 output");
                 }
                 
-                let input1_label_0 = wire_labels_storage[gate.inputs[0]]
+                let input1_label_0 = active_wire_labels.get(&gate.inputs[0])
                     .ok_or_else(|| anyhow::anyhow!("Input wire {} not found", gate.inputs[0]))?;
-                let input2_label_0 = wire_labels_storage[gate.inputs[1]]
+                let input2_label_0 = active_wire_labels.get(&gate.inputs[1])
                     .ok_or_else(|| anyhow::anyhow!("Input wire {} not found", gate.inputs[1]))?;
                 
                 // Compute both labels for inputs
-                let input1_labels = [input1_label_0, input1_label_0.xor(&delta)];
-                let input2_labels = [input2_label_0, input2_label_0.xor(&delta)];
+                let input1_labels = [*input1_label_0, input1_label_0.xor(&delta)];
+                let input2_labels = [*input2_label_0, input2_label_0.xor(&delta)];
                 
                 // Generate output labels
                 let output_label_0 = WireLabel::random(&mut rng);
@@ -336,8 +336,21 @@ pub fn garble_circuit(stream: &mut BufferedLineStream, seed_data: &[u8; 32]) -> 
                 let garbled_table = garble_and_gate(&input_label_pairs, &output_labels, gate_counter);
                 garbled_tables.push(garbled_table);
                 
-                wire_labels_storage[gate.outputs[0]] = Some(output_label_0);
+                // Add output wire label to active set
+                active_wire_labels.insert(gate.outputs[0], output_label_0);
                 gate_counter += 1;
+                
+                // Process input wires: decrement usage and remove if no longer needed
+                for &input_wire in &gate.inputs {
+                    if remaining_usage[input_wire] > 0 {
+                        remaining_usage[input_wire] -= 1;
+                        
+                        // Remove wire label from active set if no longer needed
+                        if remaining_usage[input_wire] == 0 {
+                            active_wire_labels.remove(&input_wire);
+                        }
+                    }
+                }
             }
             _ => {
                 bail!("Unsupported gate type: {}", gate.gate_type);
@@ -345,23 +358,12 @@ pub fn garble_circuit(stream: &mut BufferedLineStream, seed_data: &[u8; 32]) -> 
         }
     }
     
-    // Identify output wires (wires that are never consumed by any gate)
-    let mut consumed_wires = std::collections::HashSet::new();
-    for gate in &gates {
-        for &wire_id in &gate.inputs {
-            consumed_wires.insert(wire_id);
-        }
-    }
-    
+    // Collect output wire labels from remaining active wires (should be primary outputs)
     let mut output_labels = std::collections::HashMap::new();
-    for gate in &gates {
-        for &wire_id in &gate.outputs {
-            if !consumed_wires.contains(&wire_id) {
-                let label_0 = wire_labels_storage[wire_id]
-                    .ok_or_else(|| anyhow::anyhow!("Output wire {} not found", wire_id))?;
-                output_labels.insert(wire_id, label_0);
-            }
-        }
+    for &output_wire_id in &wire_report.primary_output_wires {
+        let label_0 = active_wire_labels.get(&output_wire_id)
+            .ok_or_else(|| anyhow::anyhow!("Output wire {} not found in active labels", output_wire_id))?;
+        output_labels.insert(output_wire_id, *label_0);
     }
     
     let wire_labels = WireLabels {
