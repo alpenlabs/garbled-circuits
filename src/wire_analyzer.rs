@@ -3,6 +3,7 @@ use serde::{Serialize, Deserialize};
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
+use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::stream::BufferedLineStream;
 
@@ -30,8 +31,21 @@ pub struct WireUsageReport {
 impl WireUsageReport {
     /// Save the report to a binary file for fast loading in processing pipelines
     pub fn save_binary<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+        // Create a spinner progress bar for serialization
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.green} [{elapsed_precise}] {msg}")
+                .unwrap()
+        );
+        pb.set_message("Serializing wire analysis data...");
+        
         let encoded = bincode::serialize(self)?;
+        
+        pb.set_message("Writing binary file...");
         std::fs::write(path, encoded)?;
+        
+        pb.finish_with_message("✓ Binary file saved");
         Ok(())
     }
     
@@ -134,6 +148,15 @@ pub fn analyze_wire_usage(stream: &mut BufferedLineStream) -> Result<WireUsageRe
     let mut wire_has_producer = Vec::new();
     let mut line_number = 0;
     
+    // Create a spinner progress bar
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} [{elapsed_precise}] {msg}")
+            .unwrap()
+    );
+    pb.set_message("Analyzing wire usage...");
+    
     // Process each gate
     while let Some(line_result) = stream.next_line() {
         line_number += 1;
@@ -156,6 +179,12 @@ pub fn analyze_wire_usage(stream: &mut BufferedLineStream) -> Result<WireUsageRe
             ensure_capacity(&mut wire_usage_counts, *output_wire);
             ensure_capacity_bool(&mut wire_has_producer, *output_wire);
             wire_has_producer[*output_wire] = true;
+        }
+        
+        // Update spinner every 10000 lines
+        if line_number % 10000 == 0 {
+            pb.tick();
+            pb.set_message(format!("Analyzing wire usage... {} gates processed", line_number));
         }
     }
     
@@ -186,6 +215,9 @@ pub fn analyze_wire_usage(stream: &mut BufferedLineStream) -> Result<WireUsageRe
         }
     }
     
+    // Finish progress bar
+    pb.finish_with_message(format!("✓ Analyzed {} gates, found {} wires", line_number, total_wires));
+    
     Ok(WireUsageReport {
         total_wires,
         primary_inputs: primary_input_wires.len(),
@@ -196,30 +228,4 @@ pub fn analyze_wire_usage(stream: &mut BufferedLineStream) -> Result<WireUsageRe
         primary_input_wires,
         primary_output_wires,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::io::Write;
-
-    #[test]
-    fn test_read_wire_report_and_export_input_wires() -> Result<()> {
-        let report_path = "psm3.wire_analysis";
-        
-        let report = WireUsageReport::load_binary(report_path)?;
-        
-        let output_path = "input_wires.txt";
-        let mut file = File::create(output_path)?;
-        
-        writeln!(file, "Input Wires:")?;
-        for wire_id in &report.primary_input_wires {
-            writeln!(file, "{}", wire_id)?;
-        }
-        
-        println!("Input wires written to {}", output_path);
-        println!("Total input wires: {}", report.primary_inputs);
-        
-        Ok(())
-    }
 }

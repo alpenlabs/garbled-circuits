@@ -5,7 +5,8 @@ use anyhow::{Result, bail};
 
 use gc::stream::BufferedLineStream;
 use gc::counter::count_gate_types;
-use gc::wire_analyzer::analyze_wire_usage;
+use gc::wire_analyzer::{analyze_wire_usage, WireUsageReport};
+use gc::memory_simulation::simulate_memory_usage;
 use gc::garbler::garble_circuit;
 
 /// High-performance Bristol circuit file analyzer
@@ -13,23 +14,25 @@ use gc::garbler::garble_circuit;
 #[command(name = "gc")]
 #[command(about = "Bristol circuit file analysis and processing")]
 #[command(version)]
-#[command(args_conflicts_with_subcommands = true)]
 #[command(subcommand_required = true)]
 struct Args {
     #[command(subcommand)]
     command: Commands,
-
-    /// Path to the Bristol circuit file
-    #[arg(global = true, help = "Bristol circuit file to process")]
-    file: PathBuf,
 }
 
 #[derive(Parser, Debug)]
 enum Commands {
     /// Count occurrences of each gate type
-    Count,
+    Count {
+        /// Path to the Bristol circuit file
+        #[arg(help = "Bristol circuit file to process")]
+        file: PathBuf,
+    },
     /// Analyze wire usage patterns and connectivity
     WireAnalysis {
+        /// Path to the Bristol circuit file
+        #[arg(help = "Bristol circuit file to process")]
+        file: PathBuf,
         /// Output file for wire analysis (default: <input>.wire_analysis)
         #[arg(
             short = 'o',
@@ -38,8 +41,31 @@ enum Commands {
         )]
         output: Option<PathBuf>,
     },
+    /// Simulate memory usage during circuit execution
+    MemorySimulation {
+        /// Path to the Bristol circuit file
+        #[arg(help = "Bristol circuit file to process")]
+        file: PathBuf,
+        /// Wire analysis file (required for memory simulation)
+        #[arg(
+            short = 'w',
+            long = "wire-analysis",
+            help = "Wire analysis file (.wire_analysis)"
+        )]
+        wire_analysis_file: PathBuf,
+        /// Output CSV file for memory snapshots (default: <input>.memory_sim.csv)
+        #[arg(
+            short = 'o',
+            long = "output",
+            help = "Output CSV file for memory simulation results"
+        )]
+        output: Option<PathBuf>,
+    },
     /// Garble a Bristol circuit file using the provided seed
     Garble {
+        /// Path to the Bristol circuit file
+        #[arg(help = "Bristol circuit file to process")]
+        file: PathBuf,
         /// File containing seed for the garbling process
         #[arg(
             short = 's',
@@ -61,14 +87,12 @@ enum Commands {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    // Open file
-    let file = File::open(&args.file)?;
-    
-    // Create streaming reader with default buffer size
-    let mut stream = BufferedLineStream::new(file);
-    
     match args.command {
-        Commands::Count => {
+        Commands::Count { file } => {
+            // Open file and create streaming reader
+            let file_handle = File::open(&file)?;
+            let mut stream = BufferedLineStream::new(file_handle);
+            
             // Count gate types
             let counts = count_gate_types(&mut stream)?;
             
@@ -76,13 +100,17 @@ fn main() -> Result<()> {
             let json_output = serde_json::to_string_pretty(&counts)?;
             println!("{}", json_output);
         }
-        Commands::WireAnalysis { output } => {
+        Commands::WireAnalysis { file, output } => {
+            // Open file and create streaming reader
+            let file_handle = File::open(&file)?;
+            let mut stream = BufferedLineStream::new(file_handle);
+            
             // Perform wire usage analysis
             let wire_report = analyze_wire_usage(&mut stream)?;
             
             // Determine output file
             let output_path = output.unwrap_or_else(|| {
-                let mut path = args.file.clone();
+                let mut path = file.clone();
                 path.set_extension("wire_analysis");
                 path
             });
@@ -98,7 +126,36 @@ fn main() -> Result<()> {
             println!("Primary outputs: {}", wire_report.primary_outputs);
             println!("Missing/unused wires: {}", wire_report.missing_wires_count);
         }
-        Commands::Garble { seed_file, output } => {
+        Commands::MemorySimulation { file, wire_analysis_file, output } => {
+            // Open file and create streaming reader
+            let file_handle = File::open(&file)?;
+            let mut stream = BufferedLineStream::new(file_handle);
+            
+            // Load wire analysis report
+            let wire_report = WireUsageReport::load_binary(&wire_analysis_file)?;
+            
+            // Perform memory simulation
+            let memory_report = simulate_memory_usage(&mut stream, &wire_report)?;
+            
+            // Determine output file
+            let output_path = output.unwrap_or_else(|| {
+                let mut path = file.clone();
+                path.set_extension("memory_sim.csv");
+                path
+            });
+            
+            // Export CSV results
+            memory_report.export_csv(&output_path)?;
+            
+            // Print summary
+            memory_report.print_summary();
+            println!("Memory simulation results saved to: {}", output_path.display());
+        }
+        Commands::Garble { file, seed_file, output } => {
+            // Open file and create streaming reader
+            let file_handle = File::open(&file)?;
+            let mut stream = BufferedLineStream::new(file_handle);
+            
             // Load 32-byte seed from file
             let seed_data = std::fs::read(&seed_file)?;
             if seed_data.len() != 32 {
@@ -116,13 +173,13 @@ fn main() -> Result<()> {
                 path.set_extension("labels.json");
                 path
             }).unwrap_or_else(|| {
-                let mut path = args.file.clone();
+                let mut path = file.clone();
                 path.set_extension("labels.json");
                 path
             });
             
             let tables_path = output.unwrap_or_else(|| {
-                let mut path = args.file.clone();
+                let mut path = file.clone();
                 path.set_extension("garbled");
                 path
             });

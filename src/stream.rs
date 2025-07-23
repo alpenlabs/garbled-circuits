@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 
 /// Default buffer size 
-const DEFAULT_BUFFER_SIZE: usize = 1024;
+const DEFAULT_BUFFER_SIZE: usize = 256 * 1024 * 1024; // 256 MB
 
 pub struct BufferedLineStream {
     /// Buffered reader with large buffer for efficient IO
