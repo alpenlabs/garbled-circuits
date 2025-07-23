@@ -15,8 +15,18 @@
   This also checks the circuit for any malformed gates. incorrect number of input, output etc
 
 ### Memory Simulation
-  
 
+### Garbling
+
+  Garbles Bristol circuits using Yao's protocol with free XOR optimization. Generates wire labels and garbled truth tables for AND gates.
+
+### OT Simulation
+
+  Simulates oblivious transfer by randomly selecting input wire labels for circuit evaluation.
+
+### Circuit Evaluation
+
+  Evaluates garbled circuits using OT-selected input labels, producing output wire labels and their bit values.
 
 ## PSM Circuit
 
@@ -31,15 +41,30 @@ Missing/unused wires: 0
 
 ## Usage
 
+### Complete Garbled Circuit Workflow
+
 ```bash
-# Analyze wire usage and save binary report
-gc wire-analysis circuit.txt -o circuit.wire_analysis.bin
+# 1. Analyze wire usage patterns (required for garbling/evaluation)
+gc wire-analysis circuit.bristol -o circuit.wire_analysis
+
+# 2. Garble the circuit
+gc garble circuit.bristol -w circuit.wire_analysis -s seed.bin
+
+# 3. Simulate OT to select input labels  
+gc ot-simulate -w circuit.labels.json -s seed2.bin -o circuit.ot.json
+
+# 4. Evaluate the garbled circuit
+gc evaluate circuit.bristol -w circuit.wire_analysis -t circuit.ot.json -g circuit.garbled -o circuit.eval.json
+```
+
+### Additional Commands
+
+```bash
+# Count gate types
+gc count circuit.bristol
 
 # Run memory simulation
-gc memory-sim circuit.txt circuit.wire_analysis.bin -o circuit.memory_sim.csv
-
-# Garble circuit (requires wire analysis)
-gc garble circuit.txt -w circuit.wire_analysis.bin -s seed.bin -o circuit.garbled
+gc memory-simulation circuit.bristol -w circuit.wire_analysis -o circuit.memory_sim.csv
 ```
 
 ### Plotting Memory Results
