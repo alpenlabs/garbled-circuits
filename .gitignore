@@ -100,3 +100,4 @@ coverage.xml
 *.png
 *.wire_analysis
 *.sh
+*.garbled

@@ -4,6 +4,7 @@ use std::path::Path;
 use rand_chacha::ChaCha12Rng;
 use rand::{RngCore, SeedableRng};
 use sha2::{Sha256, Digest};
+use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::stream::BufferedLineStream;
 use crate::wire_analyzer::WireUsageReport;
@@ -260,10 +261,23 @@ pub fn garble_circuit(
         input_labels.insert(input_wire_id, label_0);  // Save for final result
     }
     
-    // Parse all gates first to understand processing order
-    let mut gates = Vec::new();
+    // Process gates and generate garbled tables using streaming approach
+    let mut garbled_tables = Vec::new();
+    let mut gate_counter = 0u32;
     let mut line_number = 0;
     
+    // Create progress bar for gate processing (use estimated count from wire report)
+    let estimated_gates = wire_report.total_wires - wire_report.primary_inputs;
+    let pb = ProgressBar::new(estimated_gates as u64);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
+            .unwrap()
+            .progress_chars("##-")
+    );
+    pb.set_message("Garbling circuit...");
+    
+    // Process each gate as we read it (streaming approach - no memory accumulation)
     while let Some(line_result) = stream.next_line() {
         line_number += 1;
         let line = line_result?;
@@ -273,14 +287,7 @@ pub fn garble_circuit(
         }
         
         let gate = parse_gate_line(line)?;
-        gates.push(gate);
-    }
-    
-    // Process gates and generate garbled tables
-    let mut garbled_tables = Vec::new();
-    let mut gate_counter = 0u32;
-    
-    for gate in &gates {
+        let gate_index = line_number - 1;
         match gate.gate_type.as_str() {
             "XOR" => {
                 // Free XOR: output = input1 XOR input2
@@ -302,7 +309,10 @@ pub fn garble_circuit(
                 // Process input wires: decrement usage and remove if no longer needed
                 for &input_wire in &gate.inputs {
                     if remaining_usage[input_wire] > 0 {
-                        remaining_usage[input_wire] -= 1;
+                        // Wires with count 255 are never decremented (permanent wires)
+                        if remaining_usage[input_wire] < 255 {
+                            remaining_usage[input_wire] -= 1;
+                        }
                         
                         // Remove wire label from active set if no longer needed
                         if remaining_usage[input_wire] == 0 {
@@ -343,7 +353,10 @@ pub fn garble_circuit(
                 // Process input wires: decrement usage and remove if no longer needed
                 for &input_wire in &gate.inputs {
                     if remaining_usage[input_wire] > 0 {
-                        remaining_usage[input_wire] -= 1;
+                        // Wires with count 255 are never decremented (permanent wires)
+                        if remaining_usage[input_wire] < 255 {
+                            remaining_usage[input_wire] -= 1;
+                        }
                         
                         // Remove wire label from active set if no longer needed
                         if remaining_usage[input_wire] == 0 {
@@ -356,7 +369,16 @@ pub fn garble_circuit(
                 bail!("Unsupported gate type: {}", gate.gate_type);
             }
         }
+        
+        // Update progress bar every 10000 gates
+        if gate_index % 10000 == 0 {
+            pb.set_position(gate_index as u64);
+            pb.set_message(format!("Garbling... {} active labels", active_wire_labels.len()));
+        }
     }
+    
+    // Finish progress bar
+    pb.finish_with_message(format!("✓ Garbled {} gates, {} AND tables generated", line_number, garbled_tables.len()));
     
     // Collect output wire labels from remaining active wires (should be primary outputs)
     let mut output_labels = std::collections::HashMap::new();

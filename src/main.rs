@@ -66,6 +66,13 @@ enum Commands {
         /// Path to the Bristol circuit file
         #[arg(help = "Bristol circuit file to process")]
         file: PathBuf,
+        /// Binary file containing wire usage analysis
+        #[arg(
+            short = 'w',
+            long = "wire-analysis", 
+            help = "Binary file containing wire usage analysis"
+        )]
+        wire_analysis_file: PathBuf,
         /// File containing seed for the garbling process
         #[arg(
             short = 's',
@@ -151,7 +158,11 @@ fn main() -> Result<()> {
             memory_report.print_summary();
             println!("Memory simulation results saved to: {}", output_path.display());
         }
-        Commands::Garble { file, seed_file, output } => {
+        Commands::Garble { file, wire_analysis_file, seed_file, output } => {
+            // Load wire usage analysis
+            println!("Loading wire analysis from: {}", wire_analysis_file.display());
+            let wire_report = WireUsageReport::load_binary(&wire_analysis_file)?;
+            
             // Open file and create streaming reader
             let file_handle = File::open(&file)?;
             let mut stream = BufferedLineStream::new(file_handle);
@@ -165,7 +176,7 @@ fn main() -> Result<()> {
             seed_array.copy_from_slice(&seed_data);
             
             // Garble the circuit
-            let garbling_result = garble_circuit(&mut stream, &seed_array)?;
+            let garbling_result = garble_circuit(&mut stream, &wire_report, &seed_array)?;
             
             // Determine output paths
             let labels_path = output.as_ref().map(|p| {

@@ -140,7 +140,10 @@ pub fn simulate_memory_usage(
         // Process input wires: decrement usage and remove if no longer needed
         for &input_wire in &gate.inputs {
             if remaining_usage[input_wire] > 0 {
-                remaining_usage[input_wire] -= 1;
+                // Wires with count 255 are never decremented (permanent wires)
+                if remaining_usage[input_wire] < 255 {
+                    remaining_usage[input_wire] -= 1;
+                }
                 
                 // Remove wire from active set if no longer needed
                 if remaining_usage[input_wire] == 0 {

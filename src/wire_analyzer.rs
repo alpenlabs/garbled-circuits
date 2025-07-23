@@ -20,8 +20,8 @@ pub struct WireUsageReport {
     pub primary_outputs: usize,
     /// Number of missing/unused wires (gaps in wire numbering)
     pub missing_wires_count: usize,
-    /// Wire usage counts: index = wire_id, value = usage_count
-    pub wire_usage_counts: Vec<usize>,
+    /// Wire usage counts: index = wire_id, value = usage_count (capped at 255)
+    pub wire_usage_counts: Vec<u8>,
     /// List of primary input wire IDs
     pub primary_input_wires: Vec<usize>,
     /// List of primary output wire IDs
@@ -87,6 +87,42 @@ impl WireUsageReport {
         file.write_all(serde_json::to_string_pretty(&summary)?.as_bytes())?;
         Ok(())
     }
+    
+    /// Export wire usage count distribution as CSV
+    /// Shows how many wires have usage count 0, 1, 2, etc.
+    pub fn export_usage_distribution_csv<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.green} [{elapsed_precise}] {msg}")
+                .unwrap()
+        );
+        pb.set_message("Computing wire usage distribution...");
+        
+        // Count frequency of each usage count
+        let mut usage_distribution: std::collections::HashMap<u8, usize> = std::collections::HashMap::new();
+        
+        for &usage_count in &self.wire_usage_counts {
+            *usage_distribution.entry(usage_count).or_insert(0) += 1;
+        }
+        
+        pb.set_message("Writing distribution CSV...");
+        
+        // Write CSV file
+        let mut file = File::create(path)?;
+        writeln!(file, "usage_count,wire_count")?;
+        
+        // Sort by usage count for consistent output
+        let mut sorted_distribution: Vec<_> = usage_distribution.into_iter().collect();
+        sorted_distribution.sort_by_key(|&(usage_count, _)| usage_count);
+        
+        for (usage_count, wire_count) in sorted_distribution {
+            writeln!(file, "{},{}", usage_count, wire_count)?;
+        }
+        
+        pb.finish_with_message("✓ Usage distribution CSV saved");
+        Ok(())
+    }
 }
 
 /// Parsed gate information
@@ -136,7 +172,7 @@ fn parse_gate_line(line: &str) -> Result<Gate> {
 
 /// Ensure the vector has capacity for the given wire_id
 #[inline]
-fn ensure_capacity(vec: &mut Vec<usize>, wire_id: usize) {
+fn ensure_capacity(vec: &mut Vec<u8>, wire_id: usize) {
     if wire_id >= vec.len() {
         vec.resize(wire_id + 1, 0);
     }
@@ -183,10 +219,10 @@ pub fn analyze_wire_usage(stream: &mut BufferedLineStream) -> Result<WireUsageRe
         
         let gate = parse_gate_line(line)?;
         
-        // Count input wire usage (growing vec approach)
+        // Count input wire usage (growing vec approach with saturation at 255)
         for input_wire in &gate.inputs {
             ensure_capacity(&mut wire_usage_counts, *input_wire);
-            wire_usage_counts[*input_wire] += 1;
+            wire_usage_counts[*input_wire] = wire_usage_counts[*input_wire].saturating_add(1);
         }
         
         // Track which wires are produced by gates
@@ -243,4 +279,22 @@ pub fn analyze_wire_usage(stream: &mut BufferedLineStream) -> Result<WireUsageRe
         primary_input_wires,
         primary_output_wires,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_export_psm3_usage_distribution() {
+        // Load PSM3 wire analysis
+        let report = WireUsageReport::load_binary("psm3.wire_analysis")
+            .expect("Should load PSM3 wire analysis");
+        
+        // Export usage distribution
+        report.export_usage_distribution_csv("psm3_usage_distribution.csv")
+            .expect("Should export distribution CSV");
+        
+        println!("PSM3 usage distribution exported to psm3_usage_distribution.csv");
+    }
 }

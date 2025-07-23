@@ -31,8 +31,26 @@ Missing/unused wires: 0
 
 ## Usage
 
-```rust
-// How to use the library/binary.
+```bash
+# Analyze wire usage and save binary report
+gc wire-analysis circuit.txt -o circuit.wire_analysis.bin
+
+# Run memory simulation
+gc memory-sim circuit.txt circuit.wire_analysis.bin -o circuit.memory_sim.csv
+
+# Garble circuit (requires wire analysis)
+gc garble circuit.txt -w circuit.wire_analysis.bin -s seed.bin -o circuit.garbled
+```
+
+### Plotting Memory Results
+
+```bash
+# Create venv and install dependencies
+python3 -m venv plot_venv && source plot_venv/bin/activate
+pip install pandas matplotlib
+
+# Generate memory usage plot
+python plot_memory_sim.py circuit.memory_sim.csv --output memory_plot.png
 ```
 
 ## Contributing
