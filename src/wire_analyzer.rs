@@ -1,7 +1,7 @@
 use anyhow::{Result, bail};
 use serde::{Serialize, Deserialize};
 use std::fs::File;
-use std::io::Write;
+use std::io::{Write, BufReader};
 use std::path::Path;
 use indicatif::{ProgressBar, ProgressStyle};
 
@@ -49,10 +49,25 @@ impl WireUsageReport {
         Ok(())
     }
     
-    /// Load a report from a binary file
+    /// Load a report from a binary file using memory-efficient streaming
     pub fn load_binary<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let data = std::fs::read(path)?;
-        let report = bincode::deserialize(&data)?;
+        let file = File::open(path.as_ref())?;
+
+        // Use 256MB buffer for optimal balance of memory usage and performance
+        let mut reader = BufReader::with_capacity(256 * 1024 * 1024, file);
+        
+        // Add progress indication for loading
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.green} [{elapsed_precise}] {msg}")
+                .unwrap()
+        );
+        pb.set_message("Loading binary wire analysis data...");
+        
+        let report = bincode::deserialize_from(&mut reader)?;
+        
+        pb.finish_with_message("✓ Binary file loaded");
         Ok(report)
     }
     
