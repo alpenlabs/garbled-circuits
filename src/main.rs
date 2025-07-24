@@ -6,6 +6,7 @@ use anyhow::{Result, bail};
 use gc::stream::BufferedLineStream;
 use gc::counter::count_gate_types;
 use gc::wire_analyzer::{analyze_wire_usage, WireUsageReport};
+use gc::single_use_analyzer::analyze_single_use_gates;
 use gc::memory_simulation::simulate_memory_usage;
 use gc::garbler::{garble_circuit, WireLabels};
 use gc::ot_simulation::simulate_ot;
@@ -42,6 +43,19 @@ enum Commands {
             help = "Output file for wire analysis results"
         )]
         output: Option<PathBuf>,
+    },
+    /// Analyze gate types for single-use wires (requires wire analysis first)
+    SingleUseAnalysis {
+        /// Path to the Bristol circuit file
+        #[arg(help = "Bristol circuit file to process")]
+        file: PathBuf,
+        /// Path to the wire analysis file
+        #[arg(
+            short = 'w',
+            long = "wire-analysis",
+            help = "Wire analysis file (from wire-analysis command)"
+        )]
+        wire_analysis_file: PathBuf,
     },
     /// Simulate memory usage during circuit execution
     MemorySimulation {
@@ -193,6 +207,23 @@ fn main() -> Result<()> {
             println!("Primary outputs: {}", wire_report.primary_outputs);
             println!("Missing/unused wires: {}", wire_report.missing_wires_count);
         }
+        Commands::SingleUseAnalysis { file, wire_analysis_file } => {
+            // Load wire analysis report
+            println!("Loading wire analysis from: {}", wire_analysis_file.display());
+            let wire_report = WireUsageReport::load_binary(&wire_analysis_file)?;
+            
+            // Open file and create streaming reader
+            let file_handle = File::open(&file)?;
+            let mut stream = BufferedLineStream::new(file_handle);
+            
+            // Analyze single-use gates (AND vs XOR)
+            let single_use_analysis = analyze_single_use_gates(&mut stream, &wire_report)?;
+            
+            // Print results
+            println!("Single-use wires from AND gates: {}", single_use_analysis.single_use_and_gates);
+            println!("Single-use wires from XOR gates: {}", single_use_analysis.single_use_xor_gates);
+            println!("Total single-use wires: {}", single_use_analysis.total_single_use_wires);
+        }
         Commands::MemorySimulation { file, wire_analysis_file, output } => {
             // Open file and create streaming reader
             let file_handle = File::open(&file)?;
@@ -321,8 +352,7 @@ fn main() -> Result<()> {
             // Save evaluation results
             evaluation_result.save_json(&output_path)?;
             
-            // Print summary
-            evaluation_result.print_summary();
+            // Print summary removed
             println!("Evaluation results saved to: {}", output_path.display());
         }
     }
