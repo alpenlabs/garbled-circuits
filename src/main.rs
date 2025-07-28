@@ -1,16 +1,19 @@
+use anyhow::{Result, bail};
+use clap::Parser;
 use std::fs::File;
 use std::path::PathBuf;
-use clap::Parser;
-use anyhow::{Result, bail};
 
-use gc::stream::BufferedLineStream;
+use gc::bin::{
+    convert_bristol_to_compressed_binary, verify_bristol_circuit, verify_compressed_binary_circuit,
+};
 use gc::counter::count_gate_types;
-use gc::wire_analyzer::{analyze_wire_usage, WireUsageReport};
-use gc::single_use_analyzer::analyze_single_use_gates;
-use gc::memory_simulation::simulate_memory_usage;
-use gc::garbler::{garble_circuit, WireLabels};
-use gc::ot_simulation::simulate_ot;
 use gc::evaluator::evaluate_circuit;
+use gc::garbler::{WireLabels, garble_circuit};
+use gc::memory_simulation::simulate_memory_usage;
+use gc::ot_simulation::simulate_ot;
+use gc::single_use_analyzer::analyze_single_use_gates;
+use gc::stream::BufferedLineStream;
+use gc::wire_analyzer::{WireUsageReport, analyze_wire_usage};
 
 /// High-performance Bristol circuit file analyzer
 #[derive(Parser, Debug)]
@@ -85,7 +88,7 @@ enum Commands {
         /// Binary file containing wire usage analysis
         #[arg(
             short = 'w',
-            long = "wire-analysis", 
+            long = "wire-analysis",
             help = "Binary file containing wire usage analysis"
         )]
         wire_analysis_file: PathBuf,
@@ -97,11 +100,7 @@ enum Commands {
         )]
         seed_file: PathBuf,
         /// Output file for garbled circuit (default: <input>.garbled)
-        #[arg(
-            short = 'o',
-            long = "output",
-            help = "Output file for garbled circuit"
-        )]
+        #[arg(short = 'o', long = "output", help = "Output file for garbled circuit")]
         output: Option<PathBuf>,
     },
     /// Simulate OT protocol to select input wire labels
@@ -162,8 +161,32 @@ enum Commands {
         )]
         output: Option<PathBuf>,
     },
+    /// Verify Bristol format circuit file and show statistics
+    VerifyBristol {
+        /// Path to the Bristol circuit file
+        #[arg(help = "Bristol circuit file to verify")]
+        file: PathBuf,
+    },
+    /// Convert Bristol format to compressed binary format using zstd
+    ConvertToCompressedBinary {
+        /// Path to the Bristol circuit file
+        #[arg(help = "Bristol circuit file to process")]
+        file: PathBuf,
+        /// Output file for compressed binary format (default: <input>.zst)
+        #[arg(
+            short = 'o',
+            long = "output",
+            help = "Output file for compressed binary format"
+        )]
+        output: Option<PathBuf>,
+    },
+    /// Verify compressed binary format circuit file and show statistics
+    VerifyCompressedBinary {
+        /// Path to the compressed binary circuit file
+        #[arg(help = "Compressed binary circuit file to verify")]
+        file: PathBuf,
+    },
 }
-
 
 fn main() -> Result<()> {
     let args = Args::parse();
@@ -173,10 +196,10 @@ fn main() -> Result<()> {
             // Open file and create streaming reader
             let file_handle = File::open(&file)?;
             let mut stream = BufferedLineStream::new(file_handle);
-            
+
             // Count gate types
             let counts = count_gate_types(&mut stream)?;
-            
+
             // Output as JSON
             let json_output = serde_json::to_string_pretty(&counts)?;
             println!("{}", json_output);
@@ -185,20 +208,20 @@ fn main() -> Result<()> {
             // Open file and create streaming reader
             let file_handle = File::open(&file)?;
             let mut stream = BufferedLineStream::new(file_handle);
-            
+
             // Perform wire usage analysis
             let wire_report = analyze_wire_usage(&mut stream)?;
-            
+
             // Determine output file
             let output_path = output.unwrap_or_else(|| {
                 let mut path = file.clone();
                 path.set_extension("wire_analysis");
                 path
             });
-            
+
             // Save binary report
             wire_report.save_binary(&output_path)?;
-            
+
             // Print summary
             println!("Wire analysis saved to: {}", output_path.display());
             println!("Total wires: {}", wire_report.total_wires);
@@ -207,155 +230,248 @@ fn main() -> Result<()> {
             println!("Primary outputs: {}", wire_report.primary_outputs);
             println!("Missing/unused wires: {}", wire_report.missing_wires_count);
         }
-        Commands::SingleUseAnalysis { file, wire_analysis_file } => {
+        Commands::SingleUseAnalysis {
+            file,
+            wire_analysis_file,
+        } => {
             // Load wire analysis report
-            println!("Loading wire analysis from: {}", wire_analysis_file.display());
+            println!(
+                "Loading wire analysis from: {}",
+                wire_analysis_file.display()
+            );
             let wire_report = WireUsageReport::load_binary(&wire_analysis_file)?;
-            
+
             // Open file and create streaming reader
             let file_handle = File::open(&file)?;
             let mut stream = BufferedLineStream::new(file_handle);
-            
+
             // Analyze single-use gates (AND vs XOR)
             let single_use_analysis = analyze_single_use_gates(&mut stream, &wire_report)?;
-            
+
             // Print results
-            println!("Single-use wires from AND gates: {}", single_use_analysis.single_use_and_gates);
-            println!("Single-use wires from XOR gates: {}", single_use_analysis.single_use_xor_gates);
-            println!("Total single-use wires: {}", single_use_analysis.total_single_use_wires);
+            println!(
+                "Single-use wires from AND gates: {}",
+                single_use_analysis.single_use_and_gates
+            );
+            println!(
+                "Single-use wires from XOR gates: {}",
+                single_use_analysis.single_use_xor_gates
+            );
+            println!(
+                "Total single-use wires: {}",
+                single_use_analysis.total_single_use_wires
+            );
         }
-        Commands::MemorySimulation { file, wire_analysis_file, output } => {
+        Commands::MemorySimulation {
+            file,
+            wire_analysis_file,
+            output,
+        } => {
             // Open file and create streaming reader
             let file_handle = File::open(&file)?;
             let mut stream = BufferedLineStream::new(file_handle);
-            
+
             // Load wire analysis report
             let wire_report = WireUsageReport::load_binary(&wire_analysis_file)?;
-            
+
             // Perform memory simulation
             let memory_report = simulate_memory_usage(&mut stream, &wire_report)?;
-            
+
             // Determine output file
             let output_path = output.unwrap_or_else(|| {
                 let mut path = file.clone();
                 path.set_extension("memory_sim.csv");
                 path
             });
-            
+
             // Export CSV results
             memory_report.export_csv(&output_path)?;
-            
+
             // Print summary
             memory_report.print_summary();
-            println!("Memory simulation results saved to: {}", output_path.display());
+            println!(
+                "Memory simulation results saved to: {}",
+                output_path.display()
+            );
         }
-        Commands::Garble { file, wire_analysis_file, seed_file, output } => {
+        Commands::Garble {
+            file,
+            wire_analysis_file,
+            seed_file,
+            output,
+        } => {
             // Load wire usage analysis
-            println!("Loading wire analysis from: {}", wire_analysis_file.display());
+            println!(
+                "Loading wire analysis from: {}",
+                wire_analysis_file.display()
+            );
             let wire_report = WireUsageReport::load_binary(&wire_analysis_file)?;
-            
+
             // Open file and create streaming reader
             let file_handle = File::open(&file)?;
             let mut stream = BufferedLineStream::new(file_handle);
-            
+
             // Load 32-byte seed from file
             let seed_data = std::fs::read(&seed_file)?;
             if seed_data.len() != 32 {
-                bail!("Seed file must contain exactly 32 bytes, got {}", seed_data.len());
+                bail!(
+                    "Seed file must contain exactly 32 bytes, got {}",
+                    seed_data.len()
+                );
             }
             let mut seed_array = [0u8; 32];
             seed_array.copy_from_slice(&seed_data);
-            
+
             // Garble the circuit
             let garbling_result = garble_circuit(&mut stream, &wire_report, &seed_array)?;
-            
+
             // Determine output paths
-            let labels_path = output.as_ref().map(|p| {
-                let mut path = p.clone();
-                path.set_extension("labels.json");
-                path
-            }).unwrap_or_else(|| {
-                let mut path = file.clone();
-                path.set_extension("labels.json");
-                path
-            });
-            
+            let labels_path = output
+                .as_ref()
+                .map(|p| {
+                    let mut path = p.clone();
+                    path.set_extension("labels.json");
+                    path
+                })
+                .unwrap_or_else(|| {
+                    let mut path = file.clone();
+                    path.set_extension("labels.json");
+                    path
+                });
+
             let tables_path = output.unwrap_or_else(|| {
                 let mut path = file.clone();
                 path.set_extension("garbled");
                 path
             });
-            
+
             // Save results
             garbling_result.save(&labels_path, &tables_path)?;
-            
+
             println!("Garbling completed:");
             println!("  Wire labels saved to: {}", labels_path.display());
             println!("  Garbled tables saved to: {}", tables_path.display());
-            println!("  Input wires: {}", garbling_result.wire_labels.input_labels.len());
-            println!("  Output wires: {}", garbling_result.wire_labels.output_labels.len());
+            println!(
+                "  Input wires: {}",
+                garbling_result.wire_labels.input_labels.len()
+            );
+            println!(
+                "  Output wires: {}",
+                garbling_result.wire_labels.output_labels.len()
+            );
             println!("  AND gates: {}", garbling_result.garbled_tables.len());
         }
-        Commands::OtSimulate { wire_labels_file, seed_file, output } => {
+        Commands::OtSimulate {
+            wire_labels_file,
+            seed_file,
+            output,
+        } => {
             // Load wire labels from garbler output
             println!("Loading wire labels from: {}", wire_labels_file.display());
             let wire_labels = WireLabels::load_json(&wire_labels_file)?;
-            
+
             // Load 32-byte seed from file
             let seed_data = std::fs::read(&seed_file)?;
             if seed_data.len() != 32 {
-                bail!("Seed file must contain exactly 32 bytes, got {}", seed_data.len());
+                bail!(
+                    "Seed file must contain exactly 32 bytes, got {}",
+                    seed_data.len()
+                );
             }
             let mut seed_array = [0u8; 32];
             seed_array.copy_from_slice(&seed_data);
-            
+
             // Simulate OT protocol
             let ot_result = simulate_ot(&wire_labels, &seed_array)?;
-            
+
             // Determine output file
             let output_path = output.unwrap_or_else(|| {
                 let mut path = wire_labels_file.clone();
                 path.set_extension("ot.json");
                 path
             });
-            
+
             // Save OT results
             ot_result.save_json(&output_path)?;
-            
+
             println!("OT simulation completed:");
             println!("  Selected inputs: {}", ot_result.selected_inputs.len());
             println!("  Results saved to: {}", output_path.display());
         }
-        Commands::Evaluate { file, wire_analysis_file, ot_result_file, garbled_tables_file, output } => {
+        Commands::Evaluate {
+            file,
+            wire_analysis_file,
+            ot_result_file,
+            garbled_tables_file,
+            output,
+        } => {
             // Load wire usage analysis
-            println!("Loading wire analysis from: {}", wire_analysis_file.display());
+            println!(
+                "Loading wire analysis from: {}",
+                wire_analysis_file.display()
+            );
             let wire_report = WireUsageReport::load_binary(&wire_analysis_file)?;
-            
+
             // Load OT simulation results
             println!("Loading OT results from: {}", ot_result_file.display());
             let ot_result = gc::ot_simulation::OTResult::load_json(&ot_result_file)?;
-            
+
             // Open circuit file and create streaming reader
             let file_handle = File::open(&file)?;
             let mut stream = BufferedLineStream::new(file_handle);
-            
+
             // Evaluate the circuit
-            let evaluation_result = evaluate_circuit(&mut stream, &wire_report, &ot_result, &garbled_tables_file)?;
-            
+            let evaluation_result =
+                evaluate_circuit(&mut stream, &wire_report, &ot_result, &garbled_tables_file)?;
+
             // Determine output file
             let output_path = output.unwrap_or_else(|| {
                 let mut path = file.clone();
                 path.set_extension("eval.json");
                 path
             });
-            
+
             // Save evaluation results
             evaluation_result.save_json(&output_path)?;
-            
+
             // Print summary removed
             println!("Evaluation results saved to: {}", output_path.display());
         }
+        Commands::VerifyBristol { file } => {
+            // Verify Bristol circuit format
+            println!("Verifying Bristol circuit format...");
+            let stats = verify_bristol_circuit(&file)?;
+
+            // Print verification statistics
+            stats.print_summary();
+            println!("Verification completed: {}", file.display());
+        }
+        Commands::ConvertToCompressedBinary { file, output } => {
+            // Determine output file
+            let output_path = output.unwrap_or_else(|| {
+                let mut path = file.clone();
+                path.set_extension("ckt");
+                path
+            });
+
+            // Convert Bristol to compressed binary format
+            println!("Converting Bristol circuit to compressed binary format...");
+            let stats = convert_bristol_to_compressed_binary(&file, &output_path)?;
+
+            // Print conversion statistics
+            stats.print_summary();
+            println!("Conversion completed: {}", output_path.display());
+        }
+        Commands::VerifyCompressedBinary { file } => {
+            // Verify compressed binary circuit format
+            println!("Verifying compressed binary circuit format...");
+            let stats = verify_compressed_binary_circuit(&file)?;
+
+            // Print verification statistics
+            stats.print_summary();
+            println!("Verification completed: {}", file.display());
+        }
     }
-    
+
     Ok(())
 }
