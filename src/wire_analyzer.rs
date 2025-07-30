@@ -126,7 +126,7 @@ impl WireUsageReport {
         sorted_distribution.sort_by_key(|&(usage_count, _)| usage_count);
 
         for (usage_count, wire_count) in sorted_distribution {
-            writeln!(file, "{},{}", usage_count, wire_count)?;
+            writeln!(file, "{usage_count},{wire_count}")?;
         }
 
         pb.finish_with_message("✓ Usage distribution CSV saved");
@@ -305,15 +305,13 @@ pub fn analyze_wire_usage(stream: &mut BufferedLineStream) -> Result<WireUsageRe
     // Finish progress bar with final position
     pb.set_position(gates_processed as u64);
     pb.finish_with_message(format!(
-        "✓ Analyzed {} gates, found {} wires",
-        gates_processed, num_wires
+        "✓ Analyzed {gates_processed} gates, found {num_wires} wires"
     ));
 
     // Validate that we processed the expected number of gates
     if gates_processed != num_gates {
         eprintln!(
-            "Warning: Expected {} gates but processed {}",
-            num_gates, gates_processed
+            "Warning: Expected {num_gates} gates but processed {gates_processed}"
         );
     }
 
@@ -500,7 +498,7 @@ mod tests {
         // Add 256 gates that all use wire 0 as input, output to wire 1 or 2 alternately
         for i in 0..256 {
             let output_wire = if i % 2 == 0 { 1 } else { 2 };
-            circuit_data.push_str(&format!("1 1 0 {} NOT\n", output_wire));
+            circuit_data.push_str(&format!("1 1 0 {output_wire} NOT\n"));
         }
 
         let temp_file = create_test_file(&circuit_data)?;

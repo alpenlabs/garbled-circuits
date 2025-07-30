@@ -97,7 +97,7 @@ pub fn count_gate_types(stream: &mut BufferedLineStream) -> Result<HashMap<Strin
     }
 
     // Finish progress bar
-    pb.finish_with_message(format!("✓ Processed {} gates", line_number));
+    pb.finish_with_message(format!("✓ Processed {line_number} gates"));
 
     Ok(counts)
 }

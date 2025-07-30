@@ -111,7 +111,7 @@ pub fn simulate_ot(wire_labels: &WireLabels, seed_data: &[u8; 32]) -> Result<OTR
 
     // Finish progress bar with final position
     pb.set_position(processed as u64);
-    pb.finish_with_message(format!("✓ Simulated OT for {} input wires", total_inputs));
+    pb.finish_with_message(format!("✓ Simulated OT for {total_inputs} input wires"));
 
     Ok(OTResult { selected_inputs })
 }

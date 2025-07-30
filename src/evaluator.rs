@@ -197,7 +197,7 @@ fn load_garbled_tables<P: AsRef<Path>>(path: P) -> Result<Vec<GarbledTable>> {
     let num_tables = data.len() / 64;
     let mut tables = Vec::with_capacity(num_tables);
 
-    pb.set_message(format!("Parsing {} garbled tables...", num_tables));
+    pb.set_message(format!("Parsing {num_tables} garbled tables..."));
 
     for i in 0..num_tables {
         let start = i * 64;
@@ -217,7 +217,7 @@ fn load_garbled_tables<P: AsRef<Path>>(path: P) -> Result<Vec<GarbledTable>> {
         }
     }
 
-    pb.finish_with_message(format!("✓ Loaded {} garbled tables", num_tables));
+    pb.finish_with_message(format!("✓ Loaded {num_tables} garbled tables"));
     Ok(tables)
 }
 
@@ -225,6 +225,10 @@ fn load_garbled_tables<P: AsRef<Path>>(path: P) -> Result<Vec<GarbledTable>> {
 ///
 /// This function evaluates a Bristol circuit using the same memory-efficient
 /// streaming approach as the garbler, maintaining only live wire labels in memory.
+///
+/// Expected format:
+/// First line: `<num_gates> <num_wires>`
+/// Followed by gate lines in Bristol format
 ///
 /// # Arguments
 /// * `stream` - The line stream to process Bristol circuit gates
@@ -241,6 +245,27 @@ pub fn evaluate_circuit(
     ot_result: &OTResult,
     garbled_tables_path: &Path,
 ) -> Result<EvaluationResult> {
+    // Parse and validate header line (but ignore values)
+    let header_line = stream
+        .next_line()
+        .ok_or_else(|| anyhow::anyhow!("Missing header line"))??;
+
+    let header_tokens: Vec<&str> = header_line.split_whitespace().collect();
+    if header_tokens.len() != 2 {
+        bail!(
+            "Invalid header: expected '<num_gates> <num_wires>', got: '{}'",
+            header_line
+        );
+    }
+
+    // Parse header values for validation
+    let _num_gates: u32 = header_tokens[0]
+        .parse()
+        .map_err(|_| anyhow::anyhow!("Invalid num_gates: '{}'", header_tokens[0]))?;
+    let _num_wires: u32 = header_tokens[1]
+        .parse()
+        .map_err(|_| anyhow::anyhow!("Invalid num_wires: '{}'", header_tokens[1]))?;
+
     // Load all garbled tables into memory
     let garbled_tables = load_garbled_tables(garbled_tables_path)?;
 
@@ -393,8 +418,7 @@ pub fn evaluate_circuit(
 
     // Finish progress bar
     pb.finish_with_message(format!(
-        "✓ Evaluated {} gates, {} AND gates",
-        line_number, and_gate_counter
+        "✓ Evaluated {line_number} gates, {and_gate_counter} AND gates"
     ));
 
     // Collect output wire results from remaining active wires

@@ -141,7 +141,7 @@ fn main() -> Result<()> {
 
             // Output as JSON
             let json_output = serde_json::to_string_pretty(&counts)?;
-            println!("{}", json_output);
+            println!("{json_output}");
         }
         Commands::WireAnalysis { file, output } => {
             // Open file and create streaming reader
