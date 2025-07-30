@@ -272,7 +272,7 @@ pub fn analyze_wire_usage(stream: &mut BufferedLineStream) -> Result<WireUsageRe
         gates_processed += 1;
 
         // Update progress bar periodically for better performance
-        if gates_processed % PROGRESS_UPDATE_INTERVAL == 0 {
+        if gates_processed.is_multiple_of(PROGRESS_UPDATE_INTERVAL) {
             pb.set_position(gates_processed as u64);
         }
     }
