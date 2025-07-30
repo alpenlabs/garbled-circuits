@@ -252,10 +252,13 @@ pub fn evaluate_circuit(
 
     // Initialize with selected input labels
     for (&wire_id, selected_input) in &ot_result.selected_inputs {
-        active_wire_labels.insert(wire_id, LabelWithBit {
-            label: selected_input.label,
-            bit_value: selected_input.bit_value,
-        });
+        active_wire_labels.insert(
+            wire_id,
+            LabelWithBit {
+                label: selected_input.label,
+                bit_value: selected_input.bit_value,
+            },
+        );
     }
 
     // Process gates using streaming approach
@@ -305,10 +308,13 @@ pub fn evaluate_circuit(
                 let output_bit = input1.bit_value ^ input2.bit_value;
 
                 // Add output wire to active set
-                active_wire_labels.insert(gate.outputs[0], LabelWithBit {
-                    label: output_label,
-                    bit_value: output_bit,
-                });
+                active_wire_labels.insert(
+                    gate.outputs[0],
+                    LabelWithBit {
+                        label: output_label,
+                        bit_value: output_bit,
+                    },
+                );
 
                 // Process input wires: decrement usage and remove if no longer needed
                 for &input_wire in &gate.inputs {
@@ -398,10 +404,13 @@ pub fn evaluate_circuit(
             anyhow::anyhow!("Output wire {} not found in active labels", output_wire_id)
         })?;
 
-        output_results.insert(output_wire_id, OutputResult {
-            label: label_with_bit.label,
-            bit_value: label_with_bit.bit_value,
-        });
+        output_results.insert(
+            output_wire_id,
+            OutputResult {
+                label: label_with_bit.label,
+                bit_value: label_with_bit.bit_value,
+            },
+        );
     }
 
     Ok(EvaluationResult { output_results })
@@ -446,10 +455,13 @@ mod tests {
     #[test]
     fn test_evaluation_result_serialization() -> anyhow::Result<()> {
         let mut output_results = HashMap::new();
-        output_results.insert(0u32, OutputResult {
-            label: WireLabel::new([0x42; 16]),
-            bit_value: true,
-        });
+        output_results.insert(
+            0u32,
+            OutputResult {
+                label: WireLabel::new([0x42; 16]),
+                bit_value: true,
+            },
+        );
 
         let eval_result = EvaluationResult { output_results };
 

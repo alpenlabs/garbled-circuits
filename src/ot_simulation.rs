@@ -93,10 +93,13 @@ pub fn simulate_ot(wire_labels: &WireLabels, seed_data: &[u8; 32]) -> Result<OTR
             label_0
         };
 
-        selected_inputs.insert(wire_id, SelectedInput {
-            label: selected_label,
-            bit_value,
-        });
+        selected_inputs.insert(
+            wire_id,
+            SelectedInput {
+                label: selected_label,
+                bit_value,
+            },
+        );
 
         processed += 1;
 
@@ -161,10 +164,13 @@ mod tests {
     #[test]
     fn test_ot_result_serialization() -> anyhow::Result<()> {
         let mut selected_inputs = HashMap::new();
-        selected_inputs.insert(0u32, SelectedInput {
-            label: WireLabel::new([0x42; 16]),
-            bit_value: true,
-        });
+        selected_inputs.insert(
+            0u32,
+            SelectedInput {
+                label: WireLabel::new([0x42; 16]),
+                bit_value: true,
+            },
+        );
 
         let ot_result = OTResult { selected_inputs };
 
