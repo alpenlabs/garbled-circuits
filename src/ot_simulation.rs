@@ -176,7 +176,7 @@ mod tests {
         assert_eq!(loaded_result.selected_inputs.len(), 1);
         let selected = loaded_result.get_selected_input(0u32).unwrap();
         assert_eq!(selected.label, WireLabel::new([0x42; 16]));
-        assert_eq!(selected.bit_value, true);
+        assert!(selected.bit_value);
 
         Ok(())
     }

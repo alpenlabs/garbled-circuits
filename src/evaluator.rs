@@ -440,7 +440,7 @@ mod tests {
         // Should succeed and return correct output bit (true AND false = false)
         assert!(result.is_ok());
         let output = result.unwrap();
-        assert_eq!(output.bit_value, false);
+        assert!(!output.bit_value);
     }
 
     #[test]
@@ -461,7 +461,7 @@ mod tests {
         assert_eq!(loaded_result.output_results.len(), 1);
         let output = loaded_result.output_results.get(&0u32).unwrap();
         assert_eq!(output.label, WireLabel::new([0x42; 16]));
-        assert_eq!(output.bit_value, true);
+        assert!(output.bit_value);
 
         Ok(())
     }
