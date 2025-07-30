@@ -1,3 +1,5 @@
+//! Command-line interface for garbled circuits operations
+
 use anyhow::{Result, bail};
 use clap::Parser;
 use std::fs::File;

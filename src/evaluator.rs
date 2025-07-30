@@ -204,9 +204,9 @@ fn load_garbled_tables<P: AsRef<Path>>(path: P) -> Result<Vec<GarbledTable>> {
         let table_data = &data[start..start + 64];
 
         let mut ciphertexts = [[0u8; 16]; 4];
-        for j in 0..4 {
+        for (j, ciphertext) in ciphertexts.iter_mut().enumerate() {
             let ct_start = j * 16;
-            ciphertexts[j].copy_from_slice(&table_data[ct_start..ct_start + 16]);
+            ciphertext.copy_from_slice(&table_data[ct_start..ct_start + 16]);
         }
 
         tables.push(GarbledTable { ciphertexts });

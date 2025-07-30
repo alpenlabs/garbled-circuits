@@ -15,24 +15,28 @@ use crate::wire_analyzer::WireUsageReport;
 pub struct WireLabel([u8; 16]);
 
 impl WireLabel {
+    /// Create a new wire label from 16 bytes
     pub fn new(bytes: [u8; 16]) -> Self {
         WireLabel(bytes)
     }
 
+    /// Generate a random wire label using the provided RNG
     pub fn random(rng: &mut ChaCha12Rng) -> Self {
         let mut bytes = [0u8; 16];
         rng.fill_bytes(&mut bytes);
         WireLabel(bytes)
     }
 
+    /// XOR this wire label with another wire label
     pub fn xor(&self, other: &WireLabel) -> WireLabel {
         let mut result = [0u8; 16];
-        for i in 0..16 {
-            result[i] = self.0[i] ^ other.0[i];
+        for (i, result_byte) in result.iter_mut().enumerate() {
+            *result_byte = self.0[i] ^ other.0[i];
         }
         WireLabel(result)
     }
 
+    /// Get the raw bytes of this wire label
     pub fn as_bytes(&self) -> &[u8; 16] {
         &self.0
     }
@@ -230,7 +234,7 @@ pub fn garble_circuit(
 
     // Process gates and generate garbled tables using streaming approach
     let mut garbled_tables = Vec::new();
-    let mut gate_counter = 0u32;
+    let mut _gate_counter = 0u32;
     let mut line_number = 0;
 
     // Create progress bar for gate processing (use actual count from header)
@@ -407,7 +411,7 @@ pub fn garble_circuit(
 
                 // Add output wire label to active set
                 active_wire_labels.insert(output_wires[0], output_label_0);
-                gate_counter += 1;
+                _gate_counter += 1;
 
                 // Process input wires: decrement usage and remove if no longer needed
                 for &input_wire in &input_wires {
@@ -581,10 +585,10 @@ mod tests {
         assert_eq!(binary.len(), 64); // 4 * 16 bytes
 
         // Check each ciphertext is correctly placed
-        for i in 0..4 {
+        for (i, ciphertext) in ciphertexts.iter().enumerate() {
             let start = i * 16;
             let end = start + 16;
-            assert_eq!(&binary[start..end], &ciphertexts[i]);
+            assert_eq!(&binary[start..end], ciphertext);
         }
     }
 

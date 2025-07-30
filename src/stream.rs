@@ -4,6 +4,8 @@ use std::io::{self, BufRead, BufReader};
 /// Default buffer size
 const DEFAULT_BUFFER_SIZE: usize = 1024 * 1024 * 1024; // 1 GB
 
+/// High-performance streaming line reader
+#[derive(Debug)]
 pub struct BufferedLineStream {
     /// Buffered reader with large buffer for efficient IO
     reader: BufReader<File>,

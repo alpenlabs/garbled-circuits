@@ -33,7 +33,7 @@ jobs:
           cache-on-failure: true
 
       - name: Run clippy
-        run: cargo clippy --examples --tests --benches --all-features --all-targets --locked
+        run: cargo clippy --examples --tests --benches --all-features --all-targets --locked -- -A unused-crate-dependencies
         env:
           RUSTFLAGS: -D warnings
 

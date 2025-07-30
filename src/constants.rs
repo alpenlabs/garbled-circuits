@@ -1,5 +1,4 @@
 /// Shared constants for the garbled circuits library
-
 /// Buffer size for binary file operations (256MB)
 pub const BUFFER_SIZE: usize = 256 * 1024 * 1024;
 
