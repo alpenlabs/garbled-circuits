@@ -61,11 +61,11 @@ SHA256 hash: 17446f86cec9a4971dc09cb51359b532e9f48bc003c8e32c098c478df0110ca6
 Total Gates: 3286564142
 AND Gates: 12328132
 XOR Gates: 3274236010
-Total wires: 
-Primary inputs: 
-Intermediate wires: 
-Primary outputs: 
-Missing/unused wires: 
+Total wires: 3286566319
+Primary inputs: 2177
+Intermediate wires: 3285848915
+Primary outputs: 715227
+Missing/unused wires: 0
 
 ## Usage
 
