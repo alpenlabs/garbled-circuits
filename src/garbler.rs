@@ -438,7 +438,7 @@ pub fn garble_circuit(
         }
 
         // Update progress bar periodically for better performance
-        if gate_index % PROGRESS_UPDATE_INTERVAL == 0 {
+        if gate_index.is_multiple_of(PROGRESS_UPDATE_INTERVAL) {
             pb.set_position(gate_index as u64);
             // Avoid string allocation - use static message
             pb.set_message("Garbling circuit...");

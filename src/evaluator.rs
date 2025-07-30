@@ -212,7 +212,7 @@ fn load_garbled_tables<P: AsRef<Path>>(path: P) -> Result<Vec<GarbledTable>> {
         tables.push(GarbledTable { ciphertexts });
 
         // Update progress every PROGRESS_UPDATE_INTERVAL tables
-        if i % (PROGRESS_UPDATE_INTERVAL as usize) == 0 {
+        if i.is_multiple_of(PROGRESS_UPDATE_INTERVAL as usize) {
             pb.tick();
         }
     }
@@ -407,7 +407,7 @@ pub fn evaluate_circuit(
         }
 
         // Update progress bar every PROGRESS_UPDATE_INTERVAL gates
-        if gate_index % (PROGRESS_UPDATE_INTERVAL as usize) == 0 {
+        if gate_index.is_multiple_of(PROGRESS_UPDATE_INTERVAL as usize) {
             pb.set_position(gate_index as u64);
             pb.set_message(format!(
                 "Evaluating... {} active labels",

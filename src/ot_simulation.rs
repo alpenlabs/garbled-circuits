@@ -104,7 +104,7 @@ pub fn simulate_ot(wire_labels: &WireLabels, seed_data: &[u8; 32]) -> Result<OTR
         processed += 1;
 
         // Update progress bar periodically for better performance
-        if processed % PROGRESS_UPDATE_INTERVAL == 0 {
+        if processed.is_multiple_of(PROGRESS_UPDATE_INTERVAL) {
             pb.set_position(processed as u64);
         }
     }

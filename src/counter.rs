@@ -91,7 +91,7 @@ pub fn count_gate_types(stream: &mut BufferedLineStream) -> Result<HashMap<Strin
         *counts.entry(cow_gate.into_owned()).or_insert(0) += 1;
 
         // Update spinner periodically (avoid string allocation)
-        if line_number % PROGRESS_UPDATE_INTERVAL == 0 {
+        if line_number.is_multiple_of(PROGRESS_UPDATE_INTERVAL) {
             pb.tick();
         }
     }
