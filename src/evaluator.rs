@@ -409,10 +409,8 @@ pub fn evaluate_circuit(
         // Update progress bar every PROGRESS_UPDATE_INTERVAL gates
         if gate_index.is_multiple_of(PROGRESS_UPDATE_INTERVAL) {
             pb.set_position(gate_index as u64);
-            pb.set_message(format!(
-                "Evaluating... {} active labels",
-                active_wire_labels.len()
-            ));
+            // Avoid string allocation - use static message
+            pb.set_message("Evaluating circuit...");
         }
     }
 
