@@ -97,7 +97,7 @@ coverage.xml
 *.log
 *.txt
 *.json
-*.png
+*.pngmakke
 *.wire_analysis
 *.sh
 *.garbled
