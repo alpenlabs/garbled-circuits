@@ -310,9 +310,7 @@ pub fn analyze_wire_usage(stream: &mut BufferedLineStream) -> Result<WireUsageRe
 
     // Validate that we processed the expected number of gates
     if gates_processed != num_gates {
-        eprintln!(
-            "Warning: Expected {num_gates} gates but processed {gates_processed}"
-        );
+        eprintln!("Warning: Expected {num_gates} gates but processed {gates_processed}");
     }
 
     Ok(WireUsageReport {
