@@ -212,7 +212,7 @@ fn load_garbled_tables<P: AsRef<Path>>(path: P) -> Result<Vec<GarbledTable>> {
         tables.push(GarbledTable { ciphertexts });
 
         // Update progress every PROGRESS_UPDATE_INTERVAL tables
-        if i.is_multiple_of(PROGRESS_UPDATE_INTERVAL as usize) {
+        if (i as u32).is_multiple_of(PROGRESS_UPDATE_INTERVAL) {
             pb.tick();
         }
     }
@@ -311,7 +311,7 @@ pub fn evaluate_circuit(
         }
 
         let gate = parse_gate_line(line)?;
-        let gate_index = line_number - 1;
+        let gate_index: u32 = line_number - 1;
 
         match gate.gate_type.as_str() {
             "XOR" => {
@@ -407,7 +407,7 @@ pub fn evaluate_circuit(
         }
 
         // Update progress bar every PROGRESS_UPDATE_INTERVAL gates
-        if gate_index.is_multiple_of(PROGRESS_UPDATE_INTERVAL as usize) {
+        if gate_index.is_multiple_of(PROGRESS_UPDATE_INTERVAL) {
             pb.set_position(gate_index as u64);
             pb.set_message(format!(
                 "Evaluating... {} active labels",

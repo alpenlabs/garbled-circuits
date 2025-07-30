@@ -324,7 +324,7 @@ pub fn garble_circuit(
             bail!("Too many tokens at line {}: '{}'", line_number, line);
         }
 
-        let gate_index = line_number - 1;
+        let gate_index: u32 = line_number - 1;
         match gate_type {
             "XOR" => {
                 // Free XOR: output = input1 XOR input2

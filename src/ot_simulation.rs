@@ -77,7 +77,7 @@ pub fn simulate_ot(wire_labels: &WireLabels, seed_data: &[u8; 32]) -> Result<OTR
     );
     pb.set_message("Simulating OT protocol");
 
-    let mut processed = 0;
+    let mut processed: u32 = 0;
 
     // For each input wire, randomly select bit value and corresponding label
     for (&wire_id, &label_0) in &wire_labels.input_labels {
