@@ -8,7 +8,9 @@ use std::path::PathBuf;
 use gc::counter::count_gate_types;
 use gc::evaluator::evaluate_circuit;
 use gc::garbler::{WireLabels, garble_circuit};
+use gc::memory_simulation::simulate_memory_usage;
 use gc::ot_simulation::simulate_ot;
+use gc::single_use_analyzer::analyze_single_use_gates;
 use gc::stream::BufferedLineStream;
 use gc::wire_analyzer::{WireUsageReport, analyze_wire_usage};
 
@@ -122,6 +124,46 @@ enum Commands {
             short = 'o',
             long = "output",
             help = "Output file for evaluation results"
+        )]
+        output: Option<PathBuf>,
+    },
+    /// Simulate memory usage during circuit execution
+    MemorySimulation {
+        /// Path to the Bristol circuit file
+        #[arg(help = "Bristol circuit file to process")]
+        file: PathBuf,
+        /// Binary file containing wire usage analysis
+        #[arg(
+            short = 'w',
+            long = "wire-analysis",
+            help = "Binary file containing wire usage analysis"
+        )]
+        wire_analysis_file: PathBuf,
+        /// Output file for simulation results (default: <input>.memory.csv)
+        #[arg(
+            short = 'o',
+            long = "output",
+            help = "Output CSV file for memory simulation results"
+        )]
+        output: Option<PathBuf>,
+    },
+    /// Analyze single-use wire gate types
+    SingleUseAnalysis {
+        /// Path to the Bristol circuit file
+        #[arg(help = "Bristol circuit file to process")]
+        file: PathBuf,
+        /// Binary file containing wire usage analysis
+        #[arg(
+            short = 'w',
+            long = "wire-analysis",
+            help = "Binary file containing wire usage analysis"
+        )]
+        wire_analysis_file: PathBuf,
+        /// Output file for analysis results (default: <input>.single_use.json)
+        #[arg(
+            short = 'o',
+            long = "output",
+            help = "Output JSON file for single-use analysis results"
         )]
         output: Option<PathBuf>,
     },
@@ -311,6 +353,76 @@ fn main() -> Result<()> {
 
             // Print summary removed
             println!("Evaluation results saved to: {}", output_path.display());
+        }
+        Commands::MemorySimulation {
+            file,
+            wire_analysis_file,
+            output,
+        } => {
+            // Load wire usage analysis
+            println!(
+                "Loading wire analysis from: {}",
+                wire_analysis_file.display()
+            );
+            let wire_report = WireUsageReport::load_binary(&wire_analysis_file)?;
+
+            // Open file and create streaming reader
+            let file_handle = File::open(&file)?;
+            let mut stream = BufferedLineStream::new(file_handle);
+
+            // Simulate memory usage
+            let simulation_result = simulate_memory_usage(&mut stream, &wire_report)?;
+
+            // Print summary
+            simulation_result.print_summary();
+
+            // Determine output file
+            let output_path = output.unwrap_or_else(|| {
+                let mut path = file.clone();
+                path.set_extension("memory.csv");
+                path
+            });
+
+            // Export CSV results
+            simulation_result.export_csv(&output_path)?;
+
+            println!("Memory simulation results exported to: {}", output_path.display());
+        }
+        Commands::SingleUseAnalysis {
+            file,
+            wire_analysis_file,
+            output,
+        } => {
+            // Load wire usage analysis
+            println!(
+                "Loading wire analysis from: {}",
+                wire_analysis_file.display()
+            );
+            let wire_report = WireUsageReport::load_binary(&wire_analysis_file)?;
+
+            // Open file and create streaming reader
+            let file_handle = File::open(&file)?;
+            let mut stream = BufferedLineStream::new(file_handle);
+
+            // Analyze single-use gates
+            let analysis_result = analyze_single_use_gates(&mut stream, &wire_report)?;
+
+            // Determine output file
+            let output_path = output.unwrap_or_else(|| {
+                let mut path = file.clone();
+                path.set_extension("single_use.json");
+                path
+            });
+
+            // Save analysis results as JSON
+            let json_output = serde_json::to_string_pretty(&analysis_result)?;
+            std::fs::write(&output_path, json_output)?;
+
+            println!("Single-use analysis completed:");
+            println!("  Single-use AND gates: {}", analysis_result.single_use_and_gates);
+            println!("  Single-use XOR gates: {}", analysis_result.single_use_xor_gates);
+            println!("  Total single-use wires: {}", analysis_result.total_single_use_wires);
+            println!("  Results saved to: {}", output_path.display());
         }
     }
 

@@ -460,8 +460,7 @@ mod tests {
             ],
         };
 
-        let input_labels = [input1, input2];
-        let result = evaluate_and_gate(&input_labels, &garbled_table);
+        let result = evaluate_and_gate(&input1, &input2, &garbled_table);
 
         // Should succeed and return correct output bit (true AND false = false)
         assert!(result.is_ok());

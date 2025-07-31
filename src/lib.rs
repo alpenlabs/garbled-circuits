@@ -14,5 +14,7 @@ pub mod ot_simulation;
 pub mod stream;
 /// Wire usage analysis for memory optimization
 pub mod wire_analyzer;
-// pub mod single_use_analyzer;
-// pub mod memory_simulation;
+/// Count number of single-use gates
+pub mod single_use_analyzer;
+/// Simulate the memory usage to store active wires
+pub mod memory_simulation;
