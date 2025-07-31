@@ -8,13 +8,13 @@ pub mod counter;
 pub mod evaluator;
 /// Circuit garbling using Yao's protocol with free XOR
 pub mod garbler;
+/// Simulate the memory usage to store active wires
+pub mod memory_simulation;
 /// Oblivious transfer (OT) protocol simulation
 pub mod ot_simulation;
+/// Count number of single-use gates
+pub mod single_use_analyzer;
 /// High-performance streaming file reader
 pub mod stream;
 /// Wire usage analysis for memory optimization
 pub mod wire_analyzer;
-/// Count number of single-use gates
-pub mod single_use_analyzer;
-/// Simulate the memory usage to store active wires
-pub mod memory_simulation;

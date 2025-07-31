@@ -386,7 +386,10 @@ fn main() -> Result<()> {
             // Export CSV results
             simulation_result.export_csv(&output_path)?;
 
-            println!("Memory simulation results exported to: {}", output_path.display());
+            println!(
+                "Memory simulation results exported to: {}",
+                output_path.display()
+            );
         }
         Commands::SingleUseAnalysis {
             file,
@@ -419,9 +422,18 @@ fn main() -> Result<()> {
             std::fs::write(&output_path, json_output)?;
 
             println!("Single-use analysis completed:");
-            println!("  Single-use AND gates: {}", analysis_result.single_use_and_gates);
-            println!("  Single-use XOR gates: {}", analysis_result.single_use_xor_gates);
-            println!("  Total single-use wires: {}", analysis_result.total_single_use_wires);
+            println!(
+                "  Single-use AND gates: {}",
+                analysis_result.single_use_and_gates
+            );
+            println!(
+                "  Single-use XOR gates: {}",
+                analysis_result.single_use_xor_gates
+            );
+            println!(
+                "  Total single-use wires: {}",
+                analysis_result.total_single_use_wires
+            );
             println!("  Results saved to: {}", output_path.display());
         }
     }

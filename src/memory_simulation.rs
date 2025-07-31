@@ -1,9 +1,9 @@
+use anyhow::{Result, bail};
+use indicatif::{ProgressBar, ProgressStyle};
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
-use anyhow::{Result, bail};
-use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::constants::PROGRESS_UPDATE_INTERVAL;
 use crate::stream::BufferedLineStream;
@@ -43,32 +43,26 @@ struct Gate {
 fn parse_gate_line(line: &str, line_number: u32) -> Result<Gate> {
     // Parse gate line directly using iterator (more efficient - matches garbler.rs)
     let mut tokens = line.split_whitespace();
-    
+
     // Parse num_inputs and num_outputs
     let num_inputs: u32 = tokens
         .next()
         .ok_or_else(|| anyhow::anyhow!("Missing num_inputs at line {}", line_number))?
         .parse()
-        .map_err(|_| {
-            anyhow::anyhow!("Invalid num_inputs at line {}: '{}'", line_number, line)
-        })?;
+        .map_err(|_| anyhow::anyhow!("Invalid num_inputs at line {}: '{}'", line_number, line))?;
 
     let num_outputs: u32 = tokens
         .next()
         .ok_or_else(|| anyhow::anyhow!("Missing num_outputs at line {}", line_number))?
         .parse()
-        .map_err(|_| {
-            anyhow::anyhow!("Invalid num_outputs at line {}: '{}'", line_number, line)
-        })?;
+        .map_err(|_| anyhow::anyhow!("Invalid num_outputs at line {}: '{}'", line_number, line))?;
 
     // Collect input wire IDs directly (no intermediate allocation)
     let input_wires: Result<Vec<u32>> = (0..num_inputs)
         .map(|i| {
             let wire_id: u32 = tokens
                 .next()
-                .ok_or_else(|| {
-                    anyhow::anyhow!("Missing input wire {} at line {}", i, line_number)
-                })?
+                .ok_or_else(|| anyhow::anyhow!("Missing input wire {} at line {}", i, line_number))?
                 .parse()
                 .map_err(|_| {
                     anyhow::anyhow!("Invalid input wire ID at line {}: '{}'", line_number, line)
@@ -88,11 +82,7 @@ fn parse_gate_line(line: &str, line_number: u32) -> Result<Gate> {
                 })?
                 .parse()
                 .map_err(|_| {
-                    anyhow::anyhow!(
-                        "Invalid output wire ID at line {}: '{}'",
-                        line_number,
-                        line
-                    )
+                    anyhow::anyhow!("Invalid output wire ID at line {}: '{}'", line_number, line)
                 })?;
             Ok(wire_id)
         })
@@ -100,15 +90,15 @@ fn parse_gate_line(line: &str, line_number: u32) -> Result<Gate> {
     let outputs = output_wires?;
 
     // Parse gate type (last token)
-    let _gate_type = tokens.next().ok_or_else(|| {
-        anyhow::anyhow!("Missing gate type at line {}: '{}'", line_number, line)
-    })?;
+    let _gate_type = tokens
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("Missing gate type at line {}: '{}'", line_number, line))?;
 
     // Validate no extra tokens
     if tokens.next().is_some() {
         bail!("Too many tokens at line {}: '{}'", line_number, line);
     }
-    
+
     Ok(Gate { inputs, outputs })
 }
 
@@ -118,18 +108,18 @@ fn parse_gate_line(line: &str, line_number: u32) -> Result<Gate> {
 /// Expected format:
 /// First line: `<num_gates> <num_wires>`
 /// Followed by gate lines in Bristol format
-/// 
+///
 /// This function simulates the memory requirements for executing a garbled circuit
 /// by tracking which wires are "live" (actively needed) at any given time.
-/// 
+///
 /// # Arguments
 /// * `stream` - The line stream to process Bristol circuit
 /// * `wire_report` - Wire usage analysis from wire_analyzer module
-/// 
+///
 /// # Returns
 /// * `Ok(MemorySimulationReport)` - Memory simulation results with snapshots
 /// * `Err(anyhow::Error)` - Parse error or IO error
-/// 
+///
 /// # Algorithm
 /// 1. Parse and validate Bristol format header
 /// 2. Start with primary input wires in the active set
@@ -141,9 +131,9 @@ fn parse_gate_line(line: &str, line_number: u32) -> Result<Gate> {
 /// 5. Track maximum number of live wires throughout simulation
 pub fn simulate_memory_usage(
     stream: &mut BufferedLineStream,
-    wire_report: &WireUsageReport
+    wire_report: &WireUsageReport,
 ) -> Result<MemorySimulationReport> {
-    // Parse and validate header line 
+    // Parse and validate header line
     let header_line = stream
         .next_line()
         .ok_or_else(|| anyhow::anyhow!("Missing header line"))??;
@@ -166,16 +156,16 @@ pub fn simulate_memory_usage(
 
     // Initialize active wire set with primary inputs (convert to u32)
     let mut active_wires: HashSet<u32> = wire_report.primary_input_wires.iter().cloned().collect();
-    
+
     // Initialize wire usage counts (mutable copy)
     let mut remaining_usage = wire_report.wire_usage_counts.clone();
-    
+
     // Tracking variables
     let mut max_live_wires = active_wires.len();
     let mut gate_number = 0u32;
     let mut snapshots = Vec::new();
     let mut line_number = 0u32;
-    
+
     // Create progress bar for gate processing (use actual count from header)
     let pb = ProgressBar::new(num_gates as u64);
     pb.set_style(
@@ -185,67 +175,68 @@ pub fn simulate_memory_usage(
             .progress_chars("##-"),
     );
     pb.set_message("Simulating memory usage...");
-    
+
     // Process each gate as we read it (streaming approach - matches garbler.rs)
     while let Some(line_result) = stream.next_line() {
         line_number += 1;
         let line = line_result?;
-        
+
         if line.trim().is_empty() {
             bail!("Empty line at line number {}", line_number);
         }
-        
+
         let gate = parse_gate_line(&line, line_number)?;
         gate_number += 1;
-        
+
         // Process input wires: decrement usage and remove if no longer needed
         for &input_wire in &gate.inputs {
             // Add bounds checking for array access
-            if (input_wire as usize) < remaining_usage.len() && remaining_usage[input_wire as usize] > 0 {
+            if (input_wire as usize) < remaining_usage.len()
+                && remaining_usage[input_wire as usize] > 0
+            {
                 // Wires with count 255 are never decremented (permanent wires)
                 if remaining_usage[input_wire as usize] < 255 {
                     remaining_usage[input_wire as usize] -= 1;
                 }
-                
+
                 // Remove wire from active set if no longer needed
                 if remaining_usage[input_wire as usize] == 0 {
                     active_wires.remove(&input_wire);
                 }
             }
         }
-        
+
         // Add output wires to active set
         for &output_wire in &gate.outputs {
             active_wires.insert(output_wire);
         }
-        
+
         // Update maximum live wires
         if active_wires.len() > max_live_wires {
             max_live_wires = active_wires.len();
         }
-        
+
         let gate_index: u32 = line_number - 1;
-        
+
         if gate_index.is_multiple_of(PROGRESS_UPDATE_INTERVAL) {
             snapshots.push(MemorySnapshot {
                 gate_number: gate_number as usize,
                 live_wire_count: active_wires.len(),
             });
         }
-        
+
         if gate_index.is_multiple_of(PROGRESS_UPDATE_INTERVAL) {
             pb.set_position(gate_index as u64);
             pb.set_message("Simulating memory usage...");
         }
     }
-    
+
     // Finish progress bar
     pb.finish_with_message(format!(
-        "✓ Simulated {} gates, max {} live wires", 
-        line_number, 
-        max_live_wires
+        "✓ Simulated {} gates, max {} live wires",
+        line_number, max_live_wires
     ));
-    
+
     Ok(MemorySimulationReport {
         max_live_wires,
         final_live_wires: active_wires.len(),
@@ -256,10 +247,10 @@ pub fn simulate_memory_usage(
 
 impl MemorySimulationReport {
     /// Export simulation results to CSV file
-    /// 
+    ///
     /// # Arguments
     /// * `path` - Path to write CSV file
-    /// 
+    ///
     /// # CSV Format
     /// ```csv
     /// gate_number,live_wire_count
@@ -272,24 +263,28 @@ impl MemorySimulationReport {
         pb.set_style(
             ProgressStyle::default_spinner()
                 .template("{spinner:.green} [{elapsed_precise}] {msg}")
-                .unwrap()
+                .unwrap(),
         );
         pb.set_message("Writing CSV file...");
-        
+
         let mut file = File::create(path)?;
-        
+
         // Write CSV header
         writeln!(file, "gate_number,live_wire_count")?;
-        
+
         // Write snapshots
         for snapshot in &self.snapshots {
-            writeln!(file, "{},{}", snapshot.gate_number, snapshot.live_wire_count)?;
+            writeln!(
+                file,
+                "{},{}",
+                snapshot.gate_number, snapshot.live_wire_count
+            )?;
         }
-        
+
         pb.finish_with_message("✓ CSV file saved");
         Ok(())
     }
-    
+
     /// Print summary statistics to console
     pub fn print_summary(&self) {
         println!("Memory Simulation Summary:");
@@ -297,14 +292,17 @@ impl MemorySimulationReport {
         println!("  Maximum live wires: {}", self.max_live_wires);
         println!("  Final live wires: {}", self.final_live_wires);
         println!("  Snapshots taken: {}", self.snapshots.len());
-        
+
         if !self.snapshots.is_empty() {
-            println!("  First snapshot: gate {}, {} live wires", 
-                     self.snapshots[0].gate_number, 
-                     self.snapshots[0].live_wire_count);
-            println!("  Last snapshot: gate {}, {} live wires", 
-                     self.snapshots.last().unwrap().gate_number, 
-                     self.snapshots.last().unwrap().live_wire_count);
+            println!(
+                "  First snapshot: gate {}, {} live wires",
+                self.snapshots[0].gate_number, self.snapshots[0].live_wire_count
+            );
+            println!(
+                "  Last snapshot: gate {}, {} live wires",
+                self.snapshots.last().unwrap().gate_number,
+                self.snapshots.last().unwrap().live_wire_count
+            );
         }
     }
 }

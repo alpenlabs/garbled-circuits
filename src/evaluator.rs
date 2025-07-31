@@ -68,8 +68,6 @@ struct LabelWithBit {
     bit_value: bool,
 }
 
-
-
 // Hash function is now imported from garbler.rs to ensure consistency
 
 /// Evaluate an AND gate using knowledge of input bit values
@@ -84,17 +82,13 @@ fn evaluate_and_gate(
     // Compute truth table row index from input bit values
     // Row encoding: (input1_bit, input2_bit) -> row_index
     // (0,0) -> 0, (0,1) -> 1, (1,0) -> 2, (1,1) -> 3
-    let row_index = (input1.bit_value as usize) * 2
-        + (input2.bit_value as usize);
+    let row_index = (input1.bit_value as usize) * 2 + (input2.bit_value as usize);
 
     // Compute output bit value using AND truth table
     let output_bit = input1.bit_value && input2.bit_value;
 
     // Extract the input labels for hashing
-    let input_labels = [
-        input1.label,
-        input2.label,
-    ];
+    let input_labels = [input1.label, input2.label];
 
     // Compute decryption key
     let key = garbling_hash(&input_labels);
@@ -276,7 +270,9 @@ pub fn evaluate_circuit(
         if num_inputs != 2 || num_outputs != 1 {
             bail!(
                 "Gate must have 2 inputs and 1 output at line {}: got {} inputs, {} outputs",
-                line_number, num_inputs, num_outputs
+                line_number,
+                num_inputs,
+                num_outputs
             );
         }
 
@@ -368,13 +364,17 @@ pub fn evaluate_circuit(
                     .get(&input_wire_2)
                     .ok_or_else(|| anyhow::anyhow!("Input wire {} not found", input_wire_2))?;
 
-                let output = evaluate_and_gate(input1, input2, 
-                    garbled_tables.get(and_gate_counter)
-                        .ok_or_else(|| anyhow::anyhow!(
+                let output = evaluate_and_gate(
+                    input1,
+                    input2,
+                    garbled_tables.get(and_gate_counter).ok_or_else(|| {
+                        anyhow::anyhow!(
                             "Not enough garbled tables: need at least {}, have {}",
                             and_gate_counter + 1,
                             garbled_tables.len()
-                        ))?)?;
+                        )
+                    })?,
+                )?;
 
                 // Add output wire to active set
                 active_wire_labels.insert(output_wire, output);
@@ -397,7 +397,11 @@ pub fn evaluate_circuit(
                 }
             }
             _ => {
-                bail!("Unsupported gate type: {} at line {}", gate_type, line_number);
+                bail!(
+                    "Unsupported gate type: {} at line {}",
+                    gate_type,
+                    line_number
+                );
             }
         }
 
