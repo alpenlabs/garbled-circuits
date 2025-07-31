@@ -164,7 +164,7 @@ pub fn analyze_single_use_gates(
             bail!("Empty line at line number {}", line_number);
         }
 
-        let gate = parse_gate_line(&line, line_number)?;
+        let gate = parse_gate_line(line, line_number)?;
 
         // Check each output wire of this gate
         for &output_wire in &gate.outputs {
@@ -197,8 +197,7 @@ pub fn analyze_single_use_gates(
 
     // Finish progress bar
     pb.finish_with_message(format!(
-        "✓ Analyzed {} gates, found {} single-use wires ({} AND, {} XOR)",
-        line_number, total_single_use_wires, single_use_and_gates, single_use_xor_gates
+        "✓ Analyzed {line_number} gates, found {total_single_use_wires} single-use wires ({single_use_and_gates} AND, {single_use_xor_gates} XOR)"
     ));
 
     Ok(SingleUseGateAnalysis {

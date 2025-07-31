@@ -185,7 +185,7 @@ pub fn simulate_memory_usage(
             bail!("Empty line at line number {}", line_number);
         }
 
-        let gate = parse_gate_line(&line, line_number)?;
+        let gate = parse_gate_line(line, line_number)?;
         gate_number += 1;
 
         // Process input wires: decrement usage and remove if no longer needed
@@ -233,8 +233,7 @@ pub fn simulate_memory_usage(
 
     // Finish progress bar
     pb.finish_with_message(format!(
-        "✓ Simulated {} gates, max {} live wires",
-        line_number, max_live_wires
+        "✓ Simulated {line_number} gates, max {max_live_wires} live wires"
     ));
 
     Ok(MemorySimulationReport {
