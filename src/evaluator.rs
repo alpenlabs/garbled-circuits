@@ -68,86 +68,7 @@ struct LabelWithBit {
     bit_value: bool,
 }
 
-/// Parsed gate information
-#[derive(Debug)]
-struct Gate {
-    inputs: Vec<u32>,
-    outputs: Vec<u32>,
-    gate_type: String,
-}
 
-/// Parse a single gate line into input/output wire lists and gate type
-/// Bristol format: "2 1 466 466 467 XOR" or "2 1 466 466 467 AND"
-fn parse_gate_line(line: &str, line_number: u32) -> Result<Gate> {
-    let mut tokens = line.split_whitespace();
-
-    // Parse num_inputs and num_outputs using iterator
-    let num_inputs: u32 = tokens
-        .next()
-        .ok_or_else(|| anyhow::anyhow!("Missing num_inputs at line {}", line_number))?
-        .parse()
-        .map_err(|_| {
-            anyhow::anyhow!("Invalid num_inputs at line {}: '{}'", line_number, line)
-        })?;
-
-    let num_outputs: u32 = tokens
-        .next()
-        .ok_or_else(|| anyhow::anyhow!("Missing num_outputs at line {}", line_number))?
-        .parse()
-        .map_err(|_| {
-            anyhow::anyhow!("Invalid num_outputs at line {}: '{}'", line_number, line)
-        })?;
-
-    // Parse input wires using iterator (no intermediate Vec)
-    let input_wires: Result<Vec<u32>> = (0..num_inputs)
-        .map(|i| {
-            let wire_id: u32 = tokens
-                .next()
-                .ok_or_else(|| {
-                    anyhow::anyhow!("Missing input wire {} at line {}", i, line_number)
-                })?
-                .parse()
-                .map_err(|_| {
-                    anyhow::anyhow!("Invalid input wire ID at line {}: '{}'", line_number, line)
-                })?;
-            Ok(wire_id)
-        })
-        .collect();
-    let inputs = input_wires?;
-
-    // Parse output wires using iterator (no intermediate Vec)
-    let output_wires: Result<Vec<u32>> = (0..num_outputs)
-        .map(|i| {
-            let wire_id: u32 = tokens
-                .next()
-                .ok_or_else(|| {
-                    anyhow::anyhow!("Missing output wire {} at line {}", i, line_number)
-                })?
-                .parse()
-                .map_err(|_| {
-                    anyhow::anyhow!("Invalid output wire ID at line {}: '{}'", line_number, line)
-                })?;
-            Ok(wire_id)
-        })
-        .collect();
-    let outputs = output_wires?;
-
-    // Parse gate type (last token)
-    let gate_type = tokens.next().ok_or_else(|| {
-        anyhow::anyhow!("Missing gate type at line {}: '{}'", line_number, line)
-    })?.to_string();
-
-    // Validate no extra tokens (prevent malformed input)
-    if tokens.next().is_some() {
-        bail!("Too many tokens at line {}: '{}'", line_number, line);
-    }
-
-    Ok(Gate {
-        inputs,
-        outputs,
-        gate_type,
-    })
-}
 
 // Hash function is now imported from garbler.rs to ensure consistency
 
@@ -331,23 +252,83 @@ pub fn evaluate_circuit(
             bail!("Empty line at line number {}", line_number);
         }
 
-        let gate = parse_gate_line(line, line_number)?;
+        // Parse gate line directly using iterator (PERFORMANCE CRITICAL - matches garbler)
+        let mut tokens = line.split_whitespace();
+
+        // Parse num_inputs and num_outputs
+        let num_inputs: u32 = tokens
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Missing num_inputs at line {}", line_number))?
+            .parse()
+            .map_err(|_| {
+                anyhow::anyhow!("Invalid num_inputs at line {}: '{}'", line_number, line)
+            })?;
+
+        let num_outputs: u32 = tokens
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Missing num_outputs at line {}", line_number))?
+            .parse()
+            .map_err(|_| {
+                anyhow::anyhow!("Invalid num_outputs at line {}: '{}'", line_number, line)
+            })?;
+
+        // Validate standard gate format (2 inputs, 1 output)
+        if num_inputs != 2 || num_outputs != 1 {
+            bail!(
+                "Gate must have 2 inputs and 1 output at line {}: got {} inputs, {} outputs",
+                line_number, num_inputs, num_outputs
+            );
+        }
+
+        // Parse input wires directly (no Vec allocation)
+        let input_wire_1: u32 = tokens
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Missing input wire 1 at line {}", line_number))?
+            .parse()
+            .map_err(|_| {
+                anyhow::anyhow!("Invalid input wire 1 at line {}: '{}'", line_number, line)
+            })?;
+
+        let input_wire_2: u32 = tokens
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Missing input wire 2 at line {}", line_number))?
+            .parse()
+            .map_err(|_| {
+                anyhow::anyhow!("Invalid input wire 2 at line {}: '{}'", line_number, line)
+            })?;
+
+        // Parse output wire directly (no Vec allocation)
+        let output_wire: u32 = tokens
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Missing output wire at line {}", line_number))?
+            .parse()
+            .map_err(|_| {
+                anyhow::anyhow!("Invalid output wire at line {}: '{}'", line_number, line)
+            })?;
+
+        // Parse gate type (NO .to_string() allocation)
+        let gate_type = tokens.next().ok_or_else(|| {
+            anyhow::anyhow!("Missing gate type at line {}: '{}'", line_number, line)
+        })?;
+
+        // Validate no extra tokens
+        if tokens.next().is_some() {
+            bail!("Too many tokens at line {}: '{}'", line_number, line);
+        }
+
         let gate_index: u32 = line_number - 1;
 
-        match gate.gate_type.as_str() {
+        // Direct &str match (NO String allocation or conversion)
+        match gate_type {
             "XOR" => {
                 // Free XOR: output_bit = input1_bit XOR input2_bit
                 // output_label = input1_label XOR input2_label
-                if gate.inputs.len() != 2 || gate.outputs.len() != 1 {
-                    bail!("XOR gate must have 2 inputs and 1 output");
-                }
-
                 let input1 = active_wire_labels
-                    .get(&gate.inputs[0])
-                    .ok_or_else(|| anyhow::anyhow!("Input wire {} not found", gate.inputs[0]))?;
+                    .get(&input_wire_1)
+                    .ok_or_else(|| anyhow::anyhow!("Input wire {} not found", input_wire_1))?;
                 let input2 = active_wire_labels
-                    .get(&gate.inputs[1])
-                    .ok_or_else(|| anyhow::anyhow!("Input wire {} not found", gate.inputs[1]))?;
+                    .get(&input_wire_2)
+                    .ok_or_else(|| anyhow::anyhow!("Input wire {} not found", input_wire_2))?;
 
                 // XOR the labels and bit values
                 let output_label = input1.label.xor(&input2.label);
@@ -355,7 +336,7 @@ pub fn evaluate_circuit(
 
                 // Add output wire to active set
                 active_wire_labels.insert(
-                    gate.outputs[0],
+                    output_wire,
                     LabelWithBit {
                         label: output_label,
                         bit_value: output_bit,
@@ -363,7 +344,8 @@ pub fn evaluate_circuit(
                 );
 
                 // Process input wires: decrement usage and remove if no longer needed
-                for &input_wire in &gate.inputs {
+                let input_wires = [input_wire_1, input_wire_2];
+                for &input_wire in &input_wires {
                     if remaining_usage[input_wire as usize] > 0 {
                         // Wires with count 255 are never decremented (permanent wires)
                         if remaining_usage[input_wire as usize] < 255 {
@@ -379,35 +361,28 @@ pub fn evaluate_circuit(
             }
             "AND" => {
                 // Evaluate AND gate using garbled table
-                if gate.inputs.len() != 2 || gate.outputs.len() != 1 {
-                    bail!("AND gate must have 2 inputs and 1 output");
-                }
-
                 let input1 = active_wire_labels
-                    .get(&gate.inputs[0])
-                    .ok_or_else(|| anyhow::anyhow!("Input wire {} not found", gate.inputs[0]))?;
+                    .get(&input_wire_1)
+                    .ok_or_else(|| anyhow::anyhow!("Input wire {} not found", input_wire_1))?;
                 let input2 = active_wire_labels
-                    .get(&gate.inputs[1])
-                    .ok_or_else(|| anyhow::anyhow!("Input wire {} not found", gate.inputs[1]))?;
+                    .get(&input_wire_2)
+                    .ok_or_else(|| anyhow::anyhow!("Input wire {} not found", input_wire_2))?;
 
-                // Check that we have enough garbled tables
-                if and_gate_counter >= garbled_tables.len() {
-                    bail!(
-                        "Not enough garbled tables: need {}, have {}",
-                        and_gate_counter + 1,
-                        garbled_tables.len()
-                    );
-                }
-
-                let output =
-                    evaluate_and_gate(input1, input2, &garbled_tables[and_gate_counter])?;
+                let output = evaluate_and_gate(input1, input2, 
+                    garbled_tables.get(and_gate_counter)
+                        .ok_or_else(|| anyhow::anyhow!(
+                            "Not enough garbled tables: need at least {}, have {}",
+                            and_gate_counter + 1,
+                            garbled_tables.len()
+                        ))?)?;
 
                 // Add output wire to active set
-                active_wire_labels.insert(gate.outputs[0], output);
+                active_wire_labels.insert(output_wire, output);
                 and_gate_counter += 1;
 
                 // Process input wires: decrement usage and remove if no longer needed
-                for &input_wire in &gate.inputs {
+                let input_wires = [input_wire_1, input_wire_2];
+                for &input_wire in &input_wires {
                     if remaining_usage[input_wire as usize] > 0 {
                         // Wires with count 255 are never decremented (permanent wires)
                         if remaining_usage[input_wire as usize] < 255 {
@@ -422,7 +397,7 @@ pub fn evaluate_circuit(
                 }
             }
             _ => {
-                bail!("Unsupported gate type: {}", gate.gate_type);
+                bail!("Unsupported gate type: {} at line {}", gate_type, line_number);
             }
         }
 
