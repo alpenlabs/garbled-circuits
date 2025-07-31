@@ -50,6 +50,7 @@ It shows that atmost 761k out of 3.24 billion gates needs to be kept active. Thi
 ### OT Simulation
 
   Simulates oblivious transfer by randomly selecting input wire labels for circuit evaluation.
+  This has to be done by a proper OT protocol, It is currently used in this form since we want to get input labels for only one of the two possible bit values for the input wires.
 
 ### Circuit Evaluation
 

@@ -78,49 +78,69 @@ struct Gate {
 
 /// Parse a single gate line into input/output wire lists and gate type
 /// Bristol format: "2 1 466 466 467 XOR" or "2 1 466 466 467 AND"
-fn parse_gate_line(line: &str) -> Result<Gate> {
-    let tokens: Vec<&str> = line.split_whitespace().collect();
+fn parse_gate_line(line: &str, line_number: u32) -> Result<Gate> {
+    let mut tokens = line.split_whitespace();
 
-    if tokens.len() < 4 {
-        bail!("Invalid gate line: too few tokens: '{}'", line);
-    }
-
-    let num_inputs: usize = tokens[0]
+    // Parse num_inputs and num_outputs using iterator
+    let num_inputs: u32 = tokens
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("Missing num_inputs at line {}", line_number))?
         .parse()
-        .map_err(|_| anyhow::anyhow!("Invalid number of inputs: '{}'", tokens[0]))?;
-    let num_outputs: usize = tokens[1]
-        .parse()
-        .map_err(|_| anyhow::anyhow!("Invalid number of outputs: '{}'", tokens[1]))?;
-
-    if tokens.len() < 2 + num_inputs + num_outputs + 1 {
-        bail!(
-            "Invalid gate line: expected {} tokens, got {}: '{}'",
-            2 + num_inputs + num_outputs + 1,
-            tokens.len(),
-            line
-        );
-    }
-
-    // Parse input wires
-    let mut inputs = Vec::with_capacity(num_inputs);
-    for i in 0..num_inputs {
-        let wire_id: u32 = tokens[2 + i]
-            .parse()
-            .map_err(|_| anyhow::anyhow!("Invalid input wire ID: '{}'", tokens[2 + i]))?;
-        inputs.push(wire_id);
-    }
-
-    // Parse output wires
-    let mut outputs = Vec::with_capacity(num_outputs);
-    for i in 0..num_outputs {
-        let wire_id: u32 = tokens[2 + num_inputs + i].parse().map_err(|_| {
-            anyhow::anyhow!("Invalid output wire ID: '{}'", tokens[2 + num_inputs + i])
+        .map_err(|_| {
+            anyhow::anyhow!("Invalid num_inputs at line {}: '{}'", line_number, line)
         })?;
-        outputs.push(wire_id);
-    }
 
-    // Parse gate type
-    let gate_type = tokens[2 + num_inputs + num_outputs].to_string();
+    let num_outputs: u32 = tokens
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("Missing num_outputs at line {}", line_number))?
+        .parse()
+        .map_err(|_| {
+            anyhow::anyhow!("Invalid num_outputs at line {}: '{}'", line_number, line)
+        })?;
+
+    // Parse input wires using iterator (no intermediate Vec)
+    let input_wires: Result<Vec<u32>> = (0..num_inputs)
+        .map(|i| {
+            let wire_id: u32 = tokens
+                .next()
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Missing input wire {} at line {}", i, line_number)
+                })?
+                .parse()
+                .map_err(|_| {
+                    anyhow::anyhow!("Invalid input wire ID at line {}: '{}'", line_number, line)
+                })?;
+            Ok(wire_id)
+        })
+        .collect();
+    let inputs = input_wires?;
+
+    // Parse output wires using iterator (no intermediate Vec)
+    let output_wires: Result<Vec<u32>> = (0..num_outputs)
+        .map(|i| {
+            let wire_id: u32 = tokens
+                .next()
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Missing output wire {} at line {}", i, line_number)
+                })?
+                .parse()
+                .map_err(|_| {
+                    anyhow::anyhow!("Invalid output wire ID at line {}: '{}'", line_number, line)
+                })?;
+            Ok(wire_id)
+        })
+        .collect();
+    let outputs = output_wires?;
+
+    // Parse gate type (last token)
+    let gate_type = tokens.next().ok_or_else(|| {
+        anyhow::anyhow!("Missing gate type at line {}: '{}'", line_number, line)
+    })?.to_string();
+
+    // Validate no extra tokens (prevent malformed input)
+    if tokens.next().is_some() {
+        bail!("Too many tokens at line {}: '{}'", line_number, line);
+    }
 
     Ok(Gate {
         inputs,
@@ -136,22 +156,23 @@ fn parse_gate_line(line: &str) -> Result<Gate> {
 /// Since we know the bit values of input labels, we can directly compute which
 /// row of the garbled table to decrypt without trial decryption.
 fn evaluate_and_gate(
-    input_labels_with_bits: &[LabelWithBit; 2],
+    input1: &LabelWithBit,
+    input2: &LabelWithBit,
     garbled_table: &GarbledTable,
 ) -> Result<LabelWithBit> {
     // Compute truth table row index from input bit values
     // Row encoding: (input1_bit, input2_bit) -> row_index
     // (0,0) -> 0, (0,1) -> 1, (1,0) -> 2, (1,1) -> 3
-    let row_index = (input_labels_with_bits[0].bit_value as usize) * 2
-        + (input_labels_with_bits[1].bit_value as usize);
+    let row_index = (input1.bit_value as usize) * 2
+        + (input2.bit_value as usize);
 
     // Compute output bit value using AND truth table
-    let output_bit = input_labels_with_bits[0].bit_value && input_labels_with_bits[1].bit_value;
+    let output_bit = input1.bit_value && input2.bit_value;
 
     // Extract the input labels for hashing
     let input_labels = [
-        input_labels_with_bits[0].label,
-        input_labels_with_bits[1].label,
+        input1.label,
+        input2.label,
     ];
 
     // Compute decryption key
@@ -310,7 +331,7 @@ pub fn evaluate_circuit(
             bail!("Empty line at line number {}", line_number);
         }
 
-        let gate = parse_gate_line(line)?;
+        let gate = parse_gate_line(line, line_number)?;
         let gate_index: u32 = line_number - 1;
 
         match gate.gate_type.as_str() {
@@ -378,9 +399,8 @@ pub fn evaluate_circuit(
                     );
                 }
 
-                let input_labels_with_bits = [input1.clone(), input2.clone()];
                 let output =
-                    evaluate_and_gate(&input_labels_with_bits, &garbled_tables[and_gate_counter])?;
+                    evaluate_and_gate(input1, input2, &garbled_tables[and_gate_counter])?;
 
                 // Add output wire to active set
                 active_wire_labels.insert(gate.outputs[0], output);
