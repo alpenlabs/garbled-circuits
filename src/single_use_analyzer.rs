@@ -17,82 +17,6 @@ pub struct SingleUseGateAnalysis {
     pub total_single_use_wires: usize,
 }
 
-/// Gate structure for parsing Bristol format
-struct Gate {
-    inputs: Vec<u32>,
-    outputs: Vec<u32>,
-    gate_type: String,
-}
-
-/// Parse a single gate line into input/output wire lists and gate type (efficient iterator-based parsing)
-/// Bristol format: "2 1 466 466 467 XOR"
-fn parse_gate_line(line: &str, line_number: u32) -> Result<Gate> {
-    // Parse gate line directly using iterator (more efficient - matches garbler.rs)
-    let mut tokens = line.split_whitespace();
-
-    // Parse num_inputs and num_outputs
-    let num_inputs: u32 = tokens
-        .next()
-        .ok_or_else(|| anyhow::anyhow!("Missing num_inputs at line {}", line_number))?
-        .parse()
-        .map_err(|_| anyhow::anyhow!("Invalid num_inputs at line {}: '{}'", line_number, line))?;
-
-    let num_outputs: u32 = tokens
-        .next()
-        .ok_or_else(|| anyhow::anyhow!("Missing num_outputs at line {}", line_number))?
-        .parse()
-        .map_err(|_| anyhow::anyhow!("Invalid num_outputs at line {}: '{}'", line_number, line))?;
-
-    // Collect input wire IDs directly (no intermediate allocation)
-    let input_wires: Result<Vec<u32>> = (0..num_inputs)
-        .map(|i| {
-            let wire_id: u32 = tokens
-                .next()
-                .ok_or_else(|| anyhow::anyhow!("Missing input wire {} at line {}", i, line_number))?
-                .parse()
-                .map_err(|_| {
-                    anyhow::anyhow!("Invalid input wire ID at line {}: '{}'", line_number, line)
-                })?;
-            Ok(wire_id)
-        })
-        .collect();
-    let inputs = input_wires?;
-
-    // Collect output wire IDs directly (no intermediate allocation)
-    let output_wires: Result<Vec<u32>> = (0..num_outputs)
-        .map(|i| {
-            let wire_id: u32 = tokens
-                .next()
-                .ok_or_else(|| {
-                    anyhow::anyhow!("Missing output wire {} at line {}", i, line_number)
-                })?
-                .parse()
-                .map_err(|_| {
-                    anyhow::anyhow!("Invalid output wire ID at line {}: '{}'", line_number, line)
-                })?;
-            Ok(wire_id)
-        })
-        .collect();
-    let outputs = output_wires?;
-
-    // Parse gate type (last token) - keep as String since we need to match on it
-    let gate_type = tokens
-        .next()
-        .ok_or_else(|| anyhow::anyhow!("Missing gate type at line {}: '{}'", line_number, line))?
-        .to_string();
-
-    // Validate no extra tokens
-    if tokens.next().is_some() {
-        bail!("Too many tokens at line {}: '{}'", line_number, line);
-    }
-
-    Ok(Gate {
-        inputs,
-        outputs,
-        gate_type,
-    })
-}
-
 /// Analyze gate types for wires with usage count = 1
 /// Uses wire analysis data for efficient single-use wire identification
 ///
@@ -164,23 +88,77 @@ pub fn analyze_single_use_gates(
             bail!("Empty line at line number {}", line_number);
         }
 
-        let gate = parse_gate_line(line, line_number)?;
+        // Parse gate line directly using iterator (more efficient - matches garbler.rs)
+        let mut tokens = line.split_whitespace();
 
-        // Check each output wire of this gate
-        for &output_wire in &gate.outputs {
+        // Parse num_inputs and num_outputs
+        let num_inputs: u32 = tokens
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Missing num_inputs at line {}", line_number))?
+            .parse()
+            .map_err(|_| {
+                anyhow::anyhow!("Invalid num_inputs at line {}: '{}'", line_number, line)
+            })?;
+
+        let num_outputs: u32 = tokens
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Missing num_outputs at line {}", line_number))?
+            .parse()
+            .map_err(|_| {
+                anyhow::anyhow!("Invalid num_outputs at line {}: '{}'", line_number, line)
+            })?;
+
+        // Skip input wire IDs (we don't need them for this analysis)
+        for i in 0..num_inputs {
+            let _input_wire: u32 = tokens
+                .next()
+                .ok_or_else(|| anyhow::anyhow!("Missing input wire {} at line {}", i, line_number))?
+                .parse()
+                .map_err(|_| {
+                    anyhow::anyhow!("Invalid input wire ID at line {}: '{}'", line_number, line)
+                })?;
+        }
+
+        // Process output wires directly (no intermediate allocation)
+        let mut gate_has_single_use_output = false;
+        for i in 0..num_outputs {
+            let output_wire: u32 = tokens
+                .next()
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Missing output wire {} at line {}", i, line_number)
+                })?
+                .parse()
+                .map_err(|_| {
+                    anyhow::anyhow!("Invalid output wire ID at line {}: '{}'", line_number, line)
+                })?;
+
             // Add bounds checking for array access
             if (output_wire as usize) < wire_report.wire_usage_counts.len() {
                 // If this output wire has usage count = 1
                 if wire_report.wire_usage_counts[output_wire as usize] == 1 {
                     total_single_use_wires += 1;
+                    gate_has_single_use_output = true;
+                }
+            }
+        }
 
-                    match gate.gate_type.as_str() {
-                        "AND" => single_use_and_gates += 1,
-                        "XOR" => single_use_xor_gates += 1,
-                        _ => {
-                            // Other gate types (NAND, OR, etc.) - could extend if needed
-                        }
-                    }
+        // Parse gate type (last token) - only if gate has single-use outputs
+        let gate_type = tokens.next().ok_or_else(|| {
+            anyhow::anyhow!("Missing gate type at line {}: '{}'", line_number, line)
+        })?;
+
+        // Validate no extra tokens
+        if tokens.next().is_some() {
+            bail!("Too many tokens at line {}: '{}'", line_number, line);
+        }
+
+        // Count gate types only if they produce single-use wires
+        if gate_has_single_use_output {
+            match gate_type {
+                "AND" => single_use_and_gates += 1,
+                "XOR" => single_use_xor_gates += 1,
+                _ => {
+                    // Other gate types (NAND, OR, etc.) - could extend if needed
                 }
             }
         }

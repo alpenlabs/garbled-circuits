@@ -31,77 +31,6 @@ pub struct MemorySnapshot {
     pub live_wire_count: usize,
 }
 
-/// Parsed gate information
-#[derive(Debug)]
-struct Gate {
-    inputs: Vec<u32>,
-    outputs: Vec<u32>,
-}
-
-/// Parse a single gate line into input/output wire lists (efficient iterator-based parsing)
-/// Bristol format: "2 1 466 466 467 XOR"
-fn parse_gate_line(line: &str, line_number: u32) -> Result<Gate> {
-    // Parse gate line directly using iterator (more efficient - matches garbler.rs)
-    let mut tokens = line.split_whitespace();
-
-    // Parse num_inputs and num_outputs
-    let num_inputs: u32 = tokens
-        .next()
-        .ok_or_else(|| anyhow::anyhow!("Missing num_inputs at line {}", line_number))?
-        .parse()
-        .map_err(|_| anyhow::anyhow!("Invalid num_inputs at line {}: '{}'", line_number, line))?;
-
-    let num_outputs: u32 = tokens
-        .next()
-        .ok_or_else(|| anyhow::anyhow!("Missing num_outputs at line {}", line_number))?
-        .parse()
-        .map_err(|_| anyhow::anyhow!("Invalid num_outputs at line {}: '{}'", line_number, line))?;
-
-    // Collect input wire IDs directly (no intermediate allocation)
-    let input_wires: Result<Vec<u32>> = (0..num_inputs)
-        .map(|i| {
-            let wire_id: u32 = tokens
-                .next()
-                .ok_or_else(|| anyhow::anyhow!("Missing input wire {} at line {}", i, line_number))?
-                .parse()
-                .map_err(|_| {
-                    anyhow::anyhow!("Invalid input wire ID at line {}: '{}'", line_number, line)
-                })?;
-            Ok(wire_id)
-        })
-        .collect();
-    let inputs = input_wires?;
-
-    // Collect output wire IDs directly (no intermediate allocation)
-    let output_wires: Result<Vec<u32>> = (0..num_outputs)
-        .map(|i| {
-            let wire_id: u32 = tokens
-                .next()
-                .ok_or_else(|| {
-                    anyhow::anyhow!("Missing output wire {} at line {}", i, line_number)
-                })?
-                .parse()
-                .map_err(|_| {
-                    anyhow::anyhow!("Invalid output wire ID at line {}: '{}'", line_number, line)
-                })?;
-            Ok(wire_id)
-        })
-        .collect();
-    let outputs = output_wires?;
-
-    // Parse gate type (last token)
-    let _gate_type = tokens
-        .next()
-        .ok_or_else(|| anyhow::anyhow!("Missing gate type at line {}: '{}'", line_number, line))?;
-
-    // Validate no extra tokens
-    if tokens.next().is_some() {
-        bail!("Too many tokens at line {}: '{}'", line_number, line);
-    }
-
-    Ok(Gate { inputs, outputs })
-}
-
 /// Simulate memory usage during circuit execution
 /// Uses wire analysis data for memory-efficient simulation
 ///
@@ -185,11 +114,36 @@ pub fn simulate_memory_usage(
             bail!("Empty line at line number {}", line_number);
         }
 
-        let gate = parse_gate_line(line, line_number)?;
-        gate_number += 1;
+        // Parse gate line directly using iterator (more efficient - matches garbler.rs)
+        let mut tokens = line.split_whitespace();
 
-        // Process input wires: decrement usage and remove if no longer needed
-        for &input_wire in &gate.inputs {
+        // Parse num_inputs and num_outputs
+        let num_inputs: u32 = tokens
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Missing num_inputs at line {}", line_number))?
+            .parse()
+            .map_err(|_| {
+                anyhow::anyhow!("Invalid num_inputs at line {}: '{}'", line_number, line)
+            })?;
+
+        let num_outputs: u32 = tokens
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Missing num_outputs at line {}", line_number))?
+            .parse()
+            .map_err(|_| {
+                anyhow::anyhow!("Invalid num_outputs at line {}: '{}'", line_number, line)
+            })?;
+
+        // Process input wires directly (no intermediate allocation)
+        for i in 0..num_inputs {
+            let input_wire: u32 = tokens
+                .next()
+                .ok_or_else(|| anyhow::anyhow!("Missing input wire {} at line {}", i, line_number))?
+                .parse()
+                .map_err(|_| {
+                    anyhow::anyhow!("Invalid input wire ID at line {}: '{}'", line_number, line)
+                })?;
+
             // Add bounds checking for array access
             if (input_wire as usize) < remaining_usage.len()
                 && remaining_usage[input_wire as usize] > 0
@@ -206,10 +160,32 @@ pub fn simulate_memory_usage(
             }
         }
 
-        // Add output wires to active set
-        for &output_wire in &gate.outputs {
+        // Process output wires directly (no intermediate allocation)
+        for i in 0..num_outputs {
+            let output_wire: u32 = tokens
+                .next()
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Missing output wire {} at line {}", i, line_number)
+                })?
+                .parse()
+                .map_err(|_| {
+                    anyhow::anyhow!("Invalid output wire ID at line {}: '{}'", line_number, line)
+                })?;
+
             active_wires.insert(output_wire);
         }
+
+        // Parse gate type (last token)
+        let _gate_type = tokens.next().ok_or_else(|| {
+            anyhow::anyhow!("Missing gate type at line {}: '{}'", line_number, line)
+        })?;
+
+        // Validate no extra tokens
+        if tokens.next().is_some() {
+            bail!("Too many tokens at line {}: '{}'", line_number, line);
+        }
+
+        gate_number += 1;
 
         // Update maximum live wires
         if active_wires.len() > max_live_wires {
