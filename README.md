@@ -2,7 +2,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache-blue.svg)](https://opensource.org/licenses/apache-2-0)
-[![ci](https://github.com/alpenlabs/rust-template/actions/workflows/lint.yml/badge.svg?event=push)](https://github.com/alpenlabs/garbled-circuits/actions)
+[![ci](https://github.com/alpenlabs/garbled-circuits/actions/workflows/lint.yml/badge.svg?event=push)](https://github.com/alpenlabs/garbled-circuits/actions)
+
+This repo is a research implementation of Garbled Circuits. It currently implements Yao's garbling with Free XOR, but is planned to support other optimizations. It currently accepts bristol fashion format for the description of boolean circuits. The default label size is 128 bits.
 
 ## Features
 
@@ -16,7 +18,7 @@
 
 ### Wire Analysis
 
-  This performs wire usage analysis to optimize for memory allocation during garbling and evaluation. This also checks the circuit for any malformed gates. incorrect number of input, output etc.
+  This performs wire usage analysis to optimize for memory allocation during garbling and evaluation. This also checks the circuit for any malformed gates. incorrect number of inputs/outputs, etc.
   
   ```bash
   ./target/release/gc wire-analysis dv.bristol
@@ -26,47 +28,65 @@
 
 ### Memory Simulation
 
-  This is used to simulate memory utilization to ensure that we donot run out of memory storing the intermediate values.
+  This is used to simulate memory utilization to ensure that we do not run out of memory storing the intermediate values.
 
   ```bash
-  ./target/release/gc 
+  ./target/release/gc memory-simulation dv.bristol -w dv.wire_analysis -o dv.memory.csv
   ```
 
-  The details are saved to dv.memory_sim.csv which can be plotted using the script `plot_memory_sim.py`
+  The details are saved to dv.memory.csv which can be plotted using the script `plot_memory_sim.py`
 
   ```bash
-  python3 plot_memory_sim.py dv.memory_sim.csv --output dv.memory_sim.png
+  python3 plot_memory_sim.py dv.memory_sim.csv --output dv.memory.png
   ```
 
 For our dv snark verifier circuit, we have the following plot
 ![alt text](images/dv-memory-sim.png)
 
-It shows that atmost 761k out of 3.24 billion gates needs to be kept active. This is only about 0.021% of total wires which is great since at most these many intermediate wire labels needs to be kept in memory.
+It shows that at most 761k out of 3.24 billion gates needs to be kept active. This is only about 0.021% of total wires which is great since at most these many intermediate wire labels needs to be kept in memory.
 
 ### Garbling
 
   Garbles Bristol circuits using Yao's protocol with free XOR optimization. Generates wire labels and garbled truth tables for AND gates.
+
+  ```bash
+  ./target/release/gc garble dv.bristol -w dv.wire_analysis -s seed.bin
+  ```
+
+  > Note: The random seed file needed to initialize the CSPRNG can be generated using the command.
+  > ```bash
+  > dd if=/dev/urandom bs=32 count=1 of=seed.bin
+  > ```
+
 
 ### OT Simulation
 
   Simulates oblivious transfer by randomly selecting input wire labels for circuit evaluation.
   This has to be done by a proper OT protocol, It is currently used in this form since we want to get input labels for only one of the two possible bit values for the input wires.
 
+  ```bash
+  ./target/release/gc ot-simulate -w dv.labels.json -s seed2.bin -o dv.ot.json
+  ```
+
 ### Circuit Evaluation
 
   Evaluates garbled circuits using OT-selected input labels, producing output wire labels and their bit values.
 
+  ```bash
+  ./target/release/gc evaluate dv.bristol -w dv.wire_analysis -t dv.ot.json -g dv.garbled
+  ```
+
 ## DV Circuit
 
-SHA256 hash: 17446f86cec9a4971dc09cb51359b532e9f48bc003c8e32c098c478df0110ca6
-Total Gates: 3286564142
-AND Gates: 12328132
-XOR Gates: 3274236010
-Total wires: 3286566319
-Primary inputs: 2177
-Intermediate wires: 3285848915
-Primary outputs: 715227
-Missing/unused wires: 0
+- SHA256 hash: 17446f86cec9a4971dc09cb51359b532e9f48bc003c8e32c098c478df0110ca6
+- Total Gates: 3286564142
+- AND Gates: 12328132
+- XOR Gates: 3274236010
+- Total wires: 3286566319
+- Primary inputs: 2177
+- Intermediate wires: 3285848915
+- Primary outputs: 715227
+- Missing/unused wires: 0
 
 ## Usage
 
@@ -104,7 +124,7 @@ python3 -m venv plot_venv && source plot_venv/bin/activate
 pip install pandas matplotlib
 
 # Generate memory usage plot
-python plot_memory_sim.py circuit.memory_sim.csv --output memory_plot.png
+python plot_usage_distribution.py circuit.memory.csv --output memory_plot.png
 ```
 
 ## Contributing
