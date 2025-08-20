@@ -28,7 +28,7 @@ clippy.too_long_first_doc_paragraph = "warn"
 [dependencies]
 anyhow = "1.0"
 bincode = "2.0"
-clap = { version = "4.0", features = ["derive"] }
+clap = { version = "4.5", features = ["derive"] }
 indicatif = "0.18"
 rand = "0.9"
 rand_chacha = "0.9"
