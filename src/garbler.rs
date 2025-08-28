@@ -58,7 +58,7 @@ pub struct WireLabels {
 impl WireLabels {
     /// Save wire labels as JSON
     pub fn save_json<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        let json = serde_json::to_string_pretty(self)?;
+        let json = serde_json::to_string(self)?;
         std::fs::write(path, json)?;
         Ok(())
     }
