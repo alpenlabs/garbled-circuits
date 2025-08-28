@@ -13,6 +13,7 @@ use crate::garbler::{WireLabel, WireLabels};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OTResult {
     /// Selected input labels: wire_id -> (selected_label, bit_value)
+    #[serde(serialize_with = "crate::serialize_sorted_map")]
     pub selected_inputs: HashMap<u32, SelectedInput>,
 }
 
@@ -28,7 +29,7 @@ pub struct SelectedInput {
 impl OTResult {
     /// Save OT result as JSON
     pub fn save_json<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        let json = serde_json::to_string_pretty(self)?;
+        let json = serde_json::to_string(self)?;
         std::fs::write(path, json)?;
         Ok(())
     }

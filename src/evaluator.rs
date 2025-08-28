@@ -14,6 +14,7 @@ use crate::wire_analyzer::WireUsageReport;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EvaluationResult {
     /// Final output labels with their bit values: wire_id -> (label, bit_value)
+    #[serde(serialize_with = "crate::serialize_sorted_map")]
     pub output_results: HashMap<u32, OutputResult>,
 }
 
@@ -29,7 +30,7 @@ pub struct OutputResult {
 impl EvaluationResult {
     /// Save evaluation result as JSON
     pub fn save_json<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        let json = serde_json::to_string_pretty(self)?;
+        let json = serde_json::to_string(self)?;
         std::fs::write(path, json)?;
         Ok(())
     }
