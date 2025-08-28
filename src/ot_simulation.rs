@@ -13,6 +13,7 @@ use crate::garbler::{WireLabel, WireLabels};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OTResult {
     /// Selected input labels: wire_id -> (selected_label, bit_value)
+    #[serde(serialize_with = "crate::serialize_sorted_map")]
     pub selected_inputs: HashMap<u32, SelectedInput>,
 }
 

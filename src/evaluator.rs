@@ -14,6 +14,7 @@ use crate::wire_analyzer::WireUsageReport;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EvaluationResult {
     /// Final output labels with their bit values: wire_id -> (label, bit_value)
+    #[serde(serialize_with = "crate::serialize_sorted_map")]
     pub output_results: HashMap<u32, OutputResult>,
 }
 

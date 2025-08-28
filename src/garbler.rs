@@ -46,8 +46,10 @@ impl WireLabel {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WireLabels {
     /// Input wire labels: wire_id -> label_0
+    #[serde(serialize_with = "crate::serialize_sorted_map")]
     pub input_labels: std::collections::HashMap<u32, WireLabel>,
     /// Output wire labels: wire_id -> label_0
+    #[serde(serialize_with = "crate::serialize_sorted_map")]
     pub output_labels: std::collections::HashMap<u32, WireLabel>,
     /// Global delta for computing label_1 = label_0 XOR delta
     pub delta: WireLabel,
