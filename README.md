@@ -135,6 +135,22 @@ pip install pandas matplotlib
 python plot_usage_distribution.py circuit.memory.csv --output memory_plot.png
 ```
 
+## Ciruit Representation
+
+The ciruits are represented in slightly modified bristol fashion format. The original bristol fashion circuit is described [here](https://nigelsmart.github.io/MPC-Circuits/).
+The header is modified to only a contain a single line representing number of gates and number of wires. Thus the format looks like
+
+```
+<num gates> <num wires>
+<in parity> <out parity> <in wire 1> <in wire 2> ... <in wire N> <out wire 1> <out wire 2> <out wire M> <gate type>
+```
+
+The second line is repeated to represent all the gates of the circuit in a topological ordering. Two examples also taken from [Prof. Nigel Smart's website](https://nigelsmart.github.io/MPC-Circuits/) and modified to work with the tooling are in the
+`example_ckts` directory.
+
+1. [adder64.bristol](https://nigelsmart.github.io/MPC-Circuits/adder64.txt)
+2. [mult64.bristol](https://nigelsmart.github.io/MPC-Circuits/mult64.txt)
+
 ## Contributing
 
 Contributions are generally welcome.

@@ -92,7 +92,6 @@ coverage.xml
 # backup files
 *.bak
 
-*.bristol
 *.csv
 *.log
 *.txt
