@@ -1,16 +1,25 @@
-[package]
-name = "gc"
-version = "0.0.1"
+[workspace]
+members = ["gc", "gc-cli"]
+resolver = "3"
+
+[workspace.dependencies]
+anyhow = "1.0"
+bincode = "2.0"
+indicatif = "0.18"
+rand = "0.9"
+rand_chacha = "0.9"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+tempfile = "3.21"
+
+[workspace.package]
 edition = "2024"
 authors = ["Mukesh Tiwari <mukesh@alpenlabs.io>"]
-description = "Implementation of Garbler and Evaluator for Garbled Circuits in Rust"
 license = "MIT OR Apache-2.0"
-readme = "README.md"
 repository = "https://github.com/alpenlabs/garbled-circuits"
-categories = ["cryptography::garbled_circuits"]
-keywords = ["secure-multiparty-computation", "garbled-circuits"]
 
-[lints]
+[workspace.lints]
 rust.missing_debug_implementations = "warn"
 rust.rust_2018_idioms = { level = "deny", priority = -1 }
 rust.unreachable_pub = "warn"
@@ -22,23 +31,6 @@ rust.unexpected_cfgs = { level = "warn", check-cfg = [
 rust.missing_docs = "warn"
 rustdoc.all = "warn"
 clippy.too_long_first_doc_paragraph = "warn"
-
-[features]
-
-[dependencies]
-anyhow = "1.0"
-bincode = "2.0"
-clap = { version = "4.5", features = ["derive"] }
-indicatif = "0.18"
-rand = "0.9"
-rand_chacha = "0.9"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-sha2 = "0.10"
-
-[dev-dependencies]
-tempfile = "3.0"
-
 
 [profile.release]
 opt-level = 3     # Optimized for size, use 3 for speed

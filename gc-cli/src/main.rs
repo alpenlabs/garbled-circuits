@@ -16,7 +16,7 @@ use gc::wire_analyzer::{WireUsageReport, analyze_wire_usage};
 
 /// High-performance Bristol circuit file analyzer
 #[derive(Parser, Debug)]
-#[command(name = "gc")]
+#[command(name = "gc-cli")]
 #[command(about = "Bristol circuit file analysis and processing")]
 #[command(version)]
 #[command(subcommand_required = true)]
