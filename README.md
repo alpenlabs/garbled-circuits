@@ -6,6 +6,14 @@
 
 This repo is a research implementation of Garbled Circuits. It currently implements Yao's garbling with Free XOR, but is planned to support other optimizations. It currently accepts bristol fashion format for the description of boolean circuits. The default label size is 128 bits.
 
+## Installation
+
+This repo provides a CLI to for various functions. The CLI can be installed by the following command run from the root of the workspace.
+
+```bash
+cargo install --path gc-cli
+```
+
 ## Features
 
 ### Gate Count
@@ -13,7 +21,7 @@ This repo is a research implementation of Garbled Circuits. It currently impleme
   This provides the total gate count along with the distribution of different type of gates.
 
   ```bash
-  ./target/release/gc count dv.bristol
+  gc-cli count dv.bristol
   ```
 
 ### Wire Analysis
@@ -21,7 +29,7 @@ This repo is a research implementation of Garbled Circuits. It currently impleme
   This performs wire usage analysis to optimize for memory allocation during garbling and evaluation. This also checks the circuit for any malformed gates. incorrect number of inputs/outputs, etc.
   
   ```bash
-  ./target/release/gc wire-analysis dv.bristol
+  gc-cli wire-analysis dv.bristol
   ```
 
   The summary of wire-analysis is displayed to stdout and the detailed analysis info is serialized as stored in file dv.wire_analysis
@@ -31,7 +39,7 @@ This repo is a research implementation of Garbled Circuits. It currently impleme
   This is used to simulate memory utilization to ensure that we do not run out of memory storing the intermediate values.
 
   ```bash
-  ./target/release/gc memory-simulation dv.bristol -w dv.wire_analysis -o dv.memory.csv
+  gc-cli memory-simulation dv.bristol -w dv.wire_analysis -o dv.memory.csv
   ```
 
   The details are saved to dv.memory.csv which can be plotted using the script `plot_memory_sim.py`
@@ -50,7 +58,7 @@ It shows that at most 761k out of 3.24 billion gates needs to be kept active. Th
   Garbles Bristol circuits using Yao's protocol with free XOR optimization. Generates wire labels and garbled truth tables for AND gates.
 
   ```bash
-  ./target/release/gc garble dv.bristol -w dv.wire_analysis -s seed.bin
+  gc-cli garble dv.bristol -w dv.wire_analysis -s seed.bin
   ```
 
   > Note: The random seed file needed to initialize the CSPRNG can be generated using the command.
@@ -65,7 +73,7 @@ It shows that at most 761k out of 3.24 billion gates needs to be kept active. Th
   This has to be done by a proper OT protocol, It is currently used in this form since we want to get input labels for only one of the two possible bit values for the input wires.
 
   ```bash
-  ./target/release/gc ot-simulate -w dv.labels.json -s seed2.bin -o dv.ot.json
+  gc-cli ot-simulate -w dv.labels.json -s seed2.bin -o dv.ot.json
   ```
 
 ### Circuit Evaluation
@@ -73,7 +81,7 @@ It shows that at most 761k out of 3.24 billion gates needs to be kept active. Th
   Evaluates garbled circuits using OT-selected input labels, producing output wire labels and their bit values.
 
   ```bash
-  ./target/release/gc evaluate dv.bristol -w dv.wire_analysis -t dv.ot.json -g dv.garbled
+  gc-cli evaluate dv.bristol -w dv.wire_analysis -t dv.ot.json -g dv.garbled
   ```
 
 ## DV Circuit
@@ -94,26 +102,26 @@ It shows that at most 761k out of 3.24 billion gates needs to be kept active. Th
 
 ```bash
 # 1. Analyze wire usage patterns (required for garbling/evaluation)
-gc wire-analysis circuit.bristol -o circuit.wire_analysis
+gc-cli wire-analysis circuit.bristol -o circuit.wire_analysis
 
 # 2. Garble the circuit
-gc garble circuit.bristol -w circuit.wire_analysis -s seed.bin
+gc-cli garble circuit.bristol -w circuit.wire_analysis -s seed.bin
 
 # 3. Simulate OT to select input labels  
-gc ot-simulate -w circuit.labels.json -s seed2.bin -o circuit.ot.json
+gc-cli ot-simulate -w circuit.labels.json -s seed2.bin -o circuit.ot.json
 
 # 4. Evaluate the garbled circuit
-gc evaluate circuit.bristol -w circuit.wire_analysis -t circuit.ot.json -g circuit.garbled -o circuit.eval.json
+gc-cli evaluate circuit.bristol -w circuit.wire_analysis -t circuit.ot.json -g circuit.garbled -o circuit.eval.json
 ```
 
 ### Additional Commands
 
 ```bash
 # Count gate types
-gc count circuit.bristol
+gc-cli count circuit.bristol
 
 # Run memory simulation
-gc memory-simulation circuit.bristol -w circuit.wire_analysis -o circuit.memory_sim.csv
+gc-cli memory-simulation circuit.bristol -w circuit.wire_analysis -o circuit.memory_sim.csv
 ```
 
 ### Plotting Memory Results

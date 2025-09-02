@@ -1,0 +1,24 @@
+[package]
+name = "gc"
+version = "0.0.1"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Implementation of Garbler and Evaluator for Garbled Circuits in Rust"
+readme = "README.md"
+categories = ["cryptography::garbled_circuits"]
+keywords = ["secure-multiparty-computation", "garbled-circuits"]
+
+[dependencies]
+serde_json.workspace = true
+bincode.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+indicatif.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
