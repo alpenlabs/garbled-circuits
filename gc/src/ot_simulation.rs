@@ -1,12 +1,10 @@
-use anyhow::Result;
-use indicatif::{ProgressBar, ProgressStyle};
+use anyhow::{Result, bail};
 use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::constants::PROGRESS_UPDATE_INTERVAL;
 use crate::garbler::{WireLabel, WireLabels};
 
 /// OT simulation result containing selected input labels and their bit values
@@ -49,7 +47,8 @@ impl OTResult {
 /// Simulate OT protocol by randomly selecting input wire labels
 ///
 /// For each primary input wire, randomly chooses between label_0 (bit=0) or label_1 (bit=1)
-/// using a cryptographically secure random number generator.
+/// using a cryptographically secure random number generator. This function is a wrapper around
+/// create_ot_result_with_specific_inputs() with randomly generated input bits.
 ///
 /// # Arguments
 /// * `wire_labels` - Wire labels from garbler output containing input/output labels and delta
@@ -57,34 +56,53 @@ impl OTResult {
 ///
 /// # Returns
 /// * `Ok(OTResult)` - Selected input labels with their corresponding bit values
-/// * `Err(anyhow::Error)` - Serialization error
+/// * `Err(anyhow::Error)` - Error from OT result creation
 pub fn simulate_ot(wire_labels: &WireLabels, seed_data: &[u8; 32]) -> Result<OTResult> {
     // Initialize CSPRNG with provided seed
     let mut rng = ChaCha12Rng::from_seed(*seed_data);
-
-    let mut selected_inputs = HashMap::new();
-    let total_inputs: u32 = wire_labels.input_labels.len() as u32;
-
-    // Create progress bar for OT simulation
-    let pb = ProgressBar::new(total_inputs as u64);
-    pb.set_style(
-        ProgressStyle::default_bar()
-            .template(
-                "{bar:40.green/blue} {pos}/{len} inputs [{elapsed_precise}<{eta_precise}] {msg}",
-            )
-            .unwrap()
-            .progress_chars("#>-"),
-    );
-    pb.set_message("Simulating OT protocol");
-
-    let mut processed: u32 = 0;
-
-    // For each input wire, randomly select bit value and corresponding label
-    for (&wire_id, &label_0) in &wire_labels.input_labels {
-        // Generate random bit (0 or 1)
+    let mut random_inputs = HashMap::new();
+    
+    // Generate random bit value for each input wire
+    for &wire_id in wire_labels.input_labels.keys() {
         let bit_value = (rng.next_u32() & 1) == 1;
+        random_inputs.insert(wire_id, bit_value);
+    }
+    
+    // Use the specific inputs function to create the OT result
+    create_ot_result_with_specific_inputs(wire_labels, &random_inputs)
+}
 
-        // Select the appropriate label based on the bit value
+/// Create OT result with specific predetermined input bit values
+///
+/// Unlike simulate_ot() which generates random bit values, this function
+/// accepts predetermined bit values for each input wire, making it suitable
+/// for deterministic testing with specific edge cases.
+///
+/// # Arguments
+/// * `wire_labels` - Wire labels from garbler containing input labels and delta
+/// * `specific_inputs` - Map of wire_id -> desired bit value (0 or 1)
+///
+/// # Returns
+/// * `Ok(OTResult)` - Selected input labels matching the specified bit values
+/// * `Err(anyhow::Error)` - If wire_id in specific_inputs doesn't exist in wire_labels
+pub fn create_ot_result_with_specific_inputs(
+    wire_labels: &WireLabels,
+    specific_inputs: &HashMap<u32, bool>,
+) -> Result<OTResult> {
+    let mut selected_inputs = HashMap::new();
+
+    // Validate all requested wire IDs exist in input labels
+    for &wire_id in specific_inputs.keys() {
+        if !wire_labels.input_labels.contains_key(&wire_id) {
+            bail!("Wire ID {} not found in input labels", wire_id);
+        }
+    }
+
+    // For each specified input, select the appropriate label
+    for (&wire_id, &bit_value) in specific_inputs {
+        let label_0 = wire_labels.input_labels[&wire_id];
+        
+        // Select label based on specified bit value
         let selected_label = if bit_value {
             // bit_value = 1 -> select label_1 = label_0 XOR delta
             label_0.xor(&wire_labels.delta)
@@ -100,18 +118,7 @@ pub fn simulate_ot(wire_labels: &WireLabels, seed_data: &[u8; 32]) -> Result<OTR
                 bit_value,
             },
         );
-
-        processed += 1;
-
-        // Update progress bar periodically for better performance
-        if processed.is_multiple_of(PROGRESS_UPDATE_INTERVAL) {
-            pb.set_position(processed as u64);
-        }
     }
-
-    // Finish progress bar with final position
-    pb.set_position(processed as u64);
-    pb.finish_with_message(format!("✓ Simulated OT for {total_inputs} input wires"));
 
     Ok(OTResult { selected_inputs })
 }
