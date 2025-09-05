@@ -1,8 +1,8 @@
 use anyhow::{Result, bail};
+use gc::constants::PROGRESS_UPDATE_INTERVAL;
+use gc::stream::BufferedLineStream;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::collections::HashMap;
-use gc::stream::BufferedLineStream;
-use gc::constants::PROGRESS_UPDATE_INTERVAL;
 
 /// Result of plain circuit evaluation
 #[derive(Debug, PartialEq, Eq)]
@@ -34,9 +34,11 @@ pub fn evaluate_plain_circuit(
     output_wire_ids: &[u32],
 ) -> Result<PlainEvaluationResult> {
     // Parse and validate header line
-    let header_line = stream
-        .next_line()
-        .ok_or_else(|| anyhow::anyhow!("Missing header line - Bristol circuit must start with '<num_gates> <num_wires>'"))??;
+    let header_line = stream.next_line().ok_or_else(|| {
+        anyhow::anyhow!(
+            "Missing header line - Bristol circuit must start with '<num_gates> <num_wires>'"
+        )
+    })??;
 
     let header_tokens: Vec<&str> = header_line.split_whitespace().collect();
     if header_tokens.len() != 2 {
@@ -56,7 +58,7 @@ pub fn evaluate_plain_circuit(
     // Initialize Vec-based storage for wire values and computed flags
     let mut wire_values: Vec<bool> = vec![false; num_wires as usize];
     let mut wire_computed: Vec<bool> = vec![false; num_wires as usize];
-    
+
     // Set Input values
     for (&wire_id, &bit_value) in input_bits {
         wire_values[wire_id as usize] = bit_value;
@@ -104,7 +106,12 @@ pub fn evaluate_plain_circuit(
 
         // Validate standard gate in-parity and out-parity for our case
         if num_inputs != 2 || num_outputs != 1 {
-            bail!("Gate must have 2 inputs and 1 output at line {}: got {} inputs, {} outputs", line_number, num_inputs, num_outputs);
+            bail!(
+                "Gate must have 2 inputs and 1 output at line {}: got {} inputs, {} outputs",
+                line_number,
+                num_inputs,
+                num_outputs
+            );
         }
 
         // Parse input wires directly
@@ -115,7 +122,7 @@ pub fn evaluate_plain_circuit(
             .map_err(|_| {
                 anyhow::anyhow!("Invalid input wire 1 at line {}: '{}'", line_number, line)
             })?;
-        
+
         let input_wire_2: u32 = tokens
             .next()
             .ok_or_else(|| anyhow::anyhow!("Missing input wire 2 at line {}", line_number))?
@@ -152,10 +159,18 @@ pub fn evaluate_plain_circuit(
 
                 // Check that input wires have been computed
                 if !wire_computed[input1_idx] {
-                    bail!("Input wire {} value not computed yet until gate at line {}", input_wire_1, line_number);
+                    bail!(
+                        "Input wire {} value not computed yet until gate at line {}",
+                        input_wire_1,
+                        line_number
+                    );
                 }
                 if !wire_computed[input2_idx] {
-                    bail!("Input wire {} value not computed yet until gate at line {}", input_wire_2, line_number);
+                    bail!(
+                        "Input wire {} value not computed yet until gate at line {}",
+                        input_wire_2,
+                        line_number
+                    );
                 }
 
                 let output_bit = wire_values[input1_idx] ^ wire_values[input2_idx];
@@ -169,10 +184,18 @@ pub fn evaluate_plain_circuit(
 
                 // Check that input wires have been computed
                 if !wire_computed[input1_idx] {
-                    bail!("Input wire {} value not computed yet until gate at line {}", input_wire_1, line_number);
+                    bail!(
+                        "Input wire {} value not computed yet until gate at line {}",
+                        input_wire_1,
+                        line_number
+                    );
                 }
                 if !wire_computed[input2_idx] {
-                    bail!("Input wire {} value not computed yet until gate at line {}", input_wire_2, line_number);
+                    bail!(
+                        "Input wire {} value not computed yet until gate at line {}",
+                        input_wire_2,
+                        line_number
+                    );
                 }
 
                 let output_bit = wire_values[input1_idx] & wire_values[input2_idx];
@@ -180,11 +203,15 @@ pub fn evaluate_plain_circuit(
                 wire_computed[output_idx] = true;
             }
             _ => {
-                bail!("Unsupported gate type '{}' at line {} - only XOR and AND gates are supported", gate_type, line_number);
+                bail!(
+                    "Unsupported gate type '{}' at line {} - only XOR and AND gates are supported",
+                    gate_type,
+                    line_number
+                );
             }
         }
 
-        // Update progress bar 
+        // Update progress bar
         let gate_index: u32 = line_number - 1;
         if gate_index.is_multiple_of(PROGRESS_UPDATE_INTERVAL) {
             pb.set_position(gate_index as u64);
@@ -193,26 +220,30 @@ pub fn evaluate_plain_circuit(
     }
 
     // Finish progress bar
-    pb.finish_with_message(format!(
-        "✓ Evaluated {} gates",
-        line_number
-    ));
+    pb.finish_with_message(format!("✓ Evaluated {line_number} gates"));
 
     // Collect output results with validation
     let mut output_results = HashMap::new();
     for &output_wire_id in output_wire_ids {
         // Validate output wire ID bounds
         if output_wire_id >= num_wires {
-            bail!("Output wire ID {} exceeds circuit capacity of {} wires", output_wire_id, num_wires);
+            bail!(
+                "Output wire ID {} exceeds circuit capacity of {} wires",
+                output_wire_id,
+                num_wires
+            );
         }
-        
+
         let output_idx = output_wire_id as usize;
-        
+
         // Check if output wire has been computed
         if !wire_computed[output_idx] {
-            bail!("Output wire {} value was never computed by any gate", output_wire_id);
+            bail!(
+                "Output wire {} value was never computed by any gate",
+                output_wire_id
+            );
         }
-        
+
         output_results.insert(output_wire_id, wire_values[output_idx]);
     }
 
@@ -241,15 +272,15 @@ mod tests {
         let mut stream = gc::stream::BufferedLineStream::new(file);
 
         let mut input_bits = HashMap::new();
-        input_bits.insert(0, true);   // wire 0 = 1
-        input_bits.insert(1, false);  // wire 1 = 0
+        input_bits.insert(0, true); // wire 0 = 1
+        input_bits.insert(1, false); // wire 1 = 0
         let output_wire_ids = vec![2];
 
         let result = evaluate_plain_circuit(&mut stream, &input_bits, &output_wire_ids)?;
 
         // 1 XOR 0 = 1
         assert_eq!(result.output_results.len(), 1);
-        assert_eq!(result.output_results[&2], true);
+        assert!(result.output_results[&2]);
 
         Ok(())
     }
@@ -262,15 +293,15 @@ mod tests {
         let mut stream = gc::stream::BufferedLineStream::new(file);
 
         let mut input_bits = HashMap::new();
-        input_bits.insert(0, true);  // wire 0 = 1
-        input_bits.insert(1, true);  // wire 1 = 1
+        input_bits.insert(0, true); // wire 0 = 1
+        input_bits.insert(1, true); // wire 1 = 1
         let output_wire_ids = vec![2];
 
         let result = evaluate_plain_circuit(&mut stream, &input_bits, &output_wire_ids)?;
 
         // 1 AND 1 = 1
         assert_eq!(result.output_results.len(), 1);
-        assert_eq!(result.output_results[&2], true);
+        assert!(result.output_results[&2]);
 
         Ok(())
     }
@@ -291,9 +322,8 @@ mod tests {
         let result = evaluate_plain_circuit(&mut stream, &input_bits, &output_wire_ids)?;
 
         assert_eq!(result.output_results.len(), 1);
-        assert_eq!(result.output_results[&5], false);
+        assert!(!result.output_results[&5]);
 
         Ok(())
     }
-
 }

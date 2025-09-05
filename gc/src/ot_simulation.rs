@@ -61,13 +61,13 @@ pub fn simulate_ot(wire_labels: &WireLabels, seed_data: &[u8; 32]) -> Result<OTR
     // Initialize CSPRNG with provided seed
     let mut rng = ChaCha12Rng::from_seed(*seed_data);
     let mut random_inputs = HashMap::new();
-    
+
     // Generate random bit value for each input wire
     for &wire_id in wire_labels.input_labels.keys() {
         let bit_value = (rng.next_u32() & 1) == 1;
         random_inputs.insert(wire_id, bit_value);
     }
-    
+
     // Use the specific inputs function to create the OT result
     create_ot_result_with_specific_inputs(wire_labels, &random_inputs)
 }
@@ -101,7 +101,7 @@ pub fn create_ot_result_with_specific_inputs(
     // For each specified input, select the appropriate label
     for (&wire_id, &bit_value) in specific_inputs {
         let label_0 = wire_labels.input_labels[&wire_id];
-        
+
         // Select label based on specified bit value
         let selected_label = if bit_value {
             // bit_value = 1 -> select label_1 = label_0 XOR delta
