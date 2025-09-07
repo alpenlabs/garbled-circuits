@@ -34,7 +34,7 @@ const MULT64_OUTPUT_WIRES: &[u32] = &[
     13802, // 64-bit product (wires 13739-13802) - lower 64 bits only
 ];
 
-const DV_OUTPUT_WIRES: &[u32] = &[3286566318]; // Single bit verification result
+const DV_OUTPUT_WIRES: &[u32] = &[3284036995]; // Single bit verification result
 
 const AND4_OUTPUT_WIRES: &[u32] = &[6]; // Single output wire for AND4 circuit
 
@@ -242,7 +242,7 @@ fn create_mult64_inputs(a: u64, b: u64) -> HashMap<u32, bool> {
 
 /// Helper function to create input bits for the DV SNARK verifier circuit
 ///
-/// DV circuit has 2,177 primary inputs for SNARK verification
+/// DV circuit has 1706 primary inputs for SNARK verification
 /// Takes a byte array and uses it to initialize wire values bit by bit
 ///
 /// # Arguments
@@ -250,7 +250,7 @@ fn create_mult64_inputs(a: u64, b: u64) -> HashMap<u32, bool> {
 fn create_dv_inputs(input_data: &[u8]) -> HashMap<u32, bool> {
     let mut inputs = HashMap::new();
 
-    for wire_id in 0..2177 {
+    for wire_id in 0..1706 {
         let byte_idx = (wire_id / 8) as usize;
         let bit_idx = wire_id % 8;
         let bit_value = (input_data[byte_idx] >> bit_idx) & 1 == 1;
@@ -362,8 +362,8 @@ fn test_dv_random() -> Result<()> {
 fn test_dv_specific() -> Result<()> {
     let circuit_path = "../example_ckts/dv.bristol";
 
-    // Base64 encoded witness for DV circuit (2177 bits) which should pass
-    const DV_WITNESS_BASE64: &str = "1IgGGIKi/ub3i7A/utw3WphcWL0XsKtPCBpBNBLEnJRpst9GbqH/64JEZjW1F0EO4HIHr7lP7rNnHsAc4z4TkVi8JEIIzBlDaZFbNsSOHuOiwENsdU6rmeNCuW7ixvHx15kmCvSYqMZKK9pEpiwpUNE5KplzAwAAkAUAAFBplhT4HKAavgvs5wc9YEOpSin3eHK976MAQiH5DLDZQj4n3OWhEko0X+z6I/Y07ZdHs/haXiQnYHNvFsANu4sHaMqBheieQFjou8qKDwV4AlsOPggoc0dipDuk8koft1WnH1y169UqoTmxqjeT2YVZhbpYSkePegWmxGi7QXdgZB2mNgkgYj3bjhl3GjBmShawIRAB";
+    // Base64 encoded witness for DV circuit (1706 bits) which should pass
+    const DV_WITNESS_BASE64: &str = "NopG2gyd3WKkU85x8ovQk86m+b+WUiuXa8nlz259s7+DYQ3hM9/zDoNPzbWLRlMH8rrlgXHgLyORRZW7Ys4VYwLCnYrdDibCNIdmbZvXBUsWnY3JYFWr0PWlFqmdj51EDltJm2/DzlKyCxeawvO8YWr6+OKDF+sP5kS2VwO8G2SNpurjfmbWGr2c4mRy0RQT0ysUr2u45EgI4wAw02M+3Ijm2wb77xWWSVRsCnwE0i+/vq5JaMZxw02Rw9IQqDp+7kyq44XZCtYTx0wVCC25C33PL+3LAQ==";
 
     // Decode base64 to bytes
     let witness_bytes = base64::prelude::BASE64_STANDARD.decode(DV_WITNESS_BASE64)?;
