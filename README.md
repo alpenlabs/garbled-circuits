@@ -86,15 +86,7 @@ It shows that at most 761k out of 3.24 billion gates needs to be kept active. Th
 
 ## DV Circuit
 
-- SHA256 hash: 17446f86cec9a4971dc09cb51359b532e9f48bc003c8e32c098c478df0110ca6
-- Total Gates: 3286564142
-- AND Gates: 12328132
-- XOR Gates: 3274236010
-- Total wires: 3286566319
-- Primary inputs: 2177
-- Intermediate wires: 3285848915
-- Primary outputs: 715227
-- Missing/unused wires: 0
+The verifier implemented as a boolean circuit for the DV-SNARK scheme described in the [GLOCK paper](https://eprint.iacr.org/2025/1485) can be generated from the [`dv-pari-circuit` repo](https://github.com/alpenlabs/dv-pari-circuit).
 
 ## Usage
 
