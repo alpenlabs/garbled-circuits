@@ -62,10 +62,10 @@ It shows that at most 761k out of 3.24 billion gates needs to be kept active. Th
   ```
 
   > Note: The random seed file needed to initialize the CSPRNG can be generated using the command.
+  >
   > ```bash
   > dd if=/dev/urandom bs=32 count=1 of=seed.bin
   > ```
-
 
 ### OT Simulation
 
@@ -86,15 +86,7 @@ It shows that at most 761k out of 3.24 billion gates needs to be kept active. Th
 
 ## DV Circuit
 
-- SHA256 hash: 17446f86cec9a4971dc09cb51359b532e9f48bc003c8e32c098c478df0110ca6
-- Total Gates: 3286564142
-- AND Gates: 12328132
-- XOR Gates: 3274236010
-- Total wires: 3286566319
-- Primary inputs: 2177
-- Intermediate wires: 3285848915
-- Primary outputs: 715227
-- Missing/unused wires: 0
+The verifier implemented as a boolean circuit for the DV-SNARK scheme described in the [GLOCK paper](https://eprint.iacr.org/2025/1485) can be generated from the [`dv-pari-circuit` repo](https://github.com/alpenlabs/dv-pari-circuit).
 
 ## Usage
 
@@ -140,7 +132,7 @@ python plot_usage_distribution.py circuit.memory.csv --output memory_plot.png
 The ciruits are represented in slightly modified bristol fashion format. The original bristol fashion circuit is described [here](https://nigelsmart.github.io/MPC-Circuits/).
 The header is modified to only a contain a single line representing number of gates and number of wires. Thus the format looks like
 
-```
+```bristol
 <num gates> <num wires>
 <in parity> <out parity> <in wire 1> <in wire 2> ... <in wire N> <out wire 1> <out wire 2> <out wire M> <gate type>
 ```
@@ -150,6 +142,30 @@ The second line is repeated to represent all the gates of the circuit in a topol
 
 1. [adder64.bristol](https://nigelsmart.github.io/MPC-Circuits/adder64.txt)
 2. [mult64.bristol](https://nigelsmart.github.io/MPC-Circuits/mult64.txt)
+
+## Integration Tests
+
+The integration test that checks the plain evalaution of the circuits against the garbled table evalaution for the same circuit are present. These utilize a combination of radomly generated as well as some hardcoded specific inputs for the circuits in the `example_ckts` folder. Exhaustive testing of all 16 combination of inputs is done for the `and4.bristol` circuit which simply computes the AND of 4 input wires.
+
+To run these tests:
+
+```bash
+  cargo test -p gc-integration-tests
+```
+
+There are tests for `dv.bristol` circuit as well. These are ignored as the file is too large and the tests takes substantial time. Once the dv.bristol file is generated ([instructions available here](https://github.com/alpenlabs/dv-pari-circuit)) and placed in the `example_ckts` folder, the following tests can be run.
+
+To run the circuit on a random input:
+
+```bash
+cargo test --release --package gc-integration-tests --test integration -- test_dv_random --exact --show-output --ignored 
+```
+
+To run the circuit on a specific input which is a valid input that should provide the output as True.
+
+```bash
+cargo test --release --package gc-integration-tests --test integration -- test_dv_specific --exact --show-output --ignored 
+```
 
 ## Contributing
 

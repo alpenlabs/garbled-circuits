@@ -1,0 +1,23 @@
+[package]
+name = "gc-integration-tests"
+version = "0.0.1"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Integration tests for garbled circuits comparing plain vs garbled evaluation"
+categories = ["cryptography::garbled_circuits"]
+keywords = ["secure-multiparty-computation", "garbled-circuits", "testing"]
+
+[dependencies]
+gc = { path = "../gc" }
+anyhow.workspace = true
+tempfile.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
+base64.workspace = true
+indicatif.workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/integration_tests.rs"
